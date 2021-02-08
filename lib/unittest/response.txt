@@ -1,0 +1,36 @@
+      Alert-Info              R      ar    -   -   -   o   -   -
+      Alert-Info             180     ar    -   -   -   o   -   -
+      Allow                   r            -   o   -   o   o   o
+      Authorization           R            o   o   o   o   o   o
+      Call-ID                 c       r    m   m   m   m   m   m
+      Call-Info                      ar    -   -   -   o   o   o
+      Content-Length                 ar    t   t   t   t   t   t
+      CSeq                    c       r    m   m   m   m   m   m
+      Error-Info           300-699    a    -   o   o   o   o   o
+      Expires                              -   -   -   o   -   o
+      From                    c       r    m   m   m   m   m   m
+      Max-Forwards            R      amr   m   m   m   m   m   m
+      Min-Expires            423           -   -   -   -   -   m
+      MIME-Version                         o   o   -   o   o   o
+      Organization                   ar    -   -   -   o   o   o
+   Priority                    R          ar    -   -   -   o   -   -
+   Proxy-Authenticate         407         ar    -   m   -   m   m   m
+   Proxy-Authenticate         401         ar    -   o   o   o   o   o
+   Proxy-Authorization         R          dr    o   o   -   o   o   o
+   Proxy-Require               R          ar    -   o   -   o   o   o
+   Record-Route                R          ar    o   o   o   o   o   -
+   Record-Route             2xx,18x       mr    -   o   o   o   o   -
+   Require                                ar    -   c   -   c   c   c
+   Retry-After          404,413,480,486         -   o   o   o   o   o
+   Route                       R          adr   c   c   c   c   c   c
+   Server                      r                -   o   o   o   o   o
+   Supported                   R                -   o   o   m*  o   o
+   Supported                  2xx               -   o   o   m*  m*  o
+   To                        c(1)          r    m   m   m   m   m   m
+   Unsupported                420               -   m   -   m   m   m
+   User-Agent                                   o   o   o   o   o   o
+   Via                         R          amr   m   m   m   m   m   m
+   Via                        rc          dr    m   m   m   m   m   m
+   Warning                     r                -   o   o   o   o   o
+   WWW-Authenticate           401         ar    -   m   -   m   m   m
+   WWW-Authenticate           407         ar    -   o   -   o   o   o

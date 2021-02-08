@@ -1,0 +1,22 @@
+
+# Methods:
+# ACKNOWLEDGE ACK
+# BYE         BYE
+# CANCEL      CAN
+# INFO        INF
+# INVITE      INV
+# NOTIFY      NOT
+# OPTIONS     OPT
+# PRACK       PRK
+# PUBLISH     PUB
+# REFER       REF
+# REGISTER    REG
+# SUBSCRIBE   SUB
+# UPDATE      UPD
+
+# Based on RFC 3261, p.161, Table 2 and Table 3
+# Additional tables are found in RFCs defining additional SIP methods.
+HEADER_TABLE =
+[
+    ('R', 
+]
