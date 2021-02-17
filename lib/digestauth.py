@@ -3,12 +3,15 @@ digestauth.py
 
 This class provides digest authentication per RFC 2617 for SIP RFC 3261.
 """
+# pylint: disable=invalid-name,too-many-arguments,too-many-branches,fixme
 # TODO: RFC 7616
 
 import hashlib
 import os
 import time
-import urllib2
+import urllib.request
+import urllib.error
+import urllib.parse
 
 class SipDigestAuth():
     """ Provide digest authentication for SIP authentication challenge. """
@@ -43,8 +46,8 @@ class SipDigestAuth():
     def get_new_cnonce(self, nonce):
         """ Get the client-supplied cnonce value. """
         dig = hashlib.sha256(
-            "%s:%s:%s:%s" % \
-            (self.nonce_count, nonce, time.ctime(), os.urandom(64).encode('hex'))).hexdigest()
+            ("%u:%s:%s:%s" % (self.nonce_count, nonce, time.ctime(), \
+	    os.urandom(64).hex())).encode('ascii')).hexdigest()
         return dig[:32] if self._force_nonce is None else self._force_nonce
 
     def parse_challenge(self, challenge):
@@ -63,17 +66,17 @@ class SipDigestAuth():
         # qop-options       = "qop" "=" <"> 1#qop-value <">
         # qop-value         = "auth" | "auth-int" | token
         _, challenge = challenge.split(' ', 1)
-        self.challenge = urllib2.parse_keqv_list(urllib2.parse_http_list(challenge))
-        if 'algorithm' not in self.challenge.keys():
+        self.challenge = urllib.request.parse_keqv_list(urllib.request.parse_http_list(challenge))
+        if 'algorithm' not in list(self.challenge.keys()):
             self.challenge['algorithm'] = 'MD5'
 
         # RFC 7616
         if 'MD5' in self.challenge['algorithm']:
-            self.__H = lambda d: hashlib.md5(d).hexdigest()
+            self.__H = lambda d: hashlib.md5(d.encode('ascii')).hexdigest()
         elif 'SHA-256' in self.challenge['algorithm']:
-            self.__H = lambda d: hashlib.sha256(d).hexdigest()
+            self.__H = lambda d: hashlib.sha256(d.encode('ascii')).hexdigest()
         elif 'SHA-512-256' in self.challenge['algorithm']:
-            self.__H = lambda d: hashlib.sha512(d).hexdigest()
+            self.__H = lambda d: hashlib.sha512(d.encode('ascii')).hexdigest()
 
     def get_auth_digest(self, sip_method, digest_uri, username, password, request_body_hash=None):
         """
@@ -107,7 +110,7 @@ class SipDigestAuth():
         #                     "c" | "d" | "e" | "f"
         if sip_method is None or digest_uri is None or username is None or password is None:
             return None
-        if self.is_algorithm_supported() == False:
+        if not self.is_algorithm_supported():
             return None
 
         KD = lambda s, d: self.__H("%s:%s" % (s, d))
@@ -141,7 +144,8 @@ class SipDigestAuth():
                 (self.challenge['nonce'], nc_value, self.cnonce,
                  self.challenge['qop'], self.__H(A2)))
         else:
-            request_digest = KD(self.__H(self.__A1), "%s:%s" % (self.challenge['nonce'], self.__H(A2)))
+            request_digest = KD(self.__H(self.__A1), \
+                "%s:%s" % (self.challenge['nonce'], self.__H(A2)))
 
         digest = 'Digest username="%s", realm="%s", nonce="%s", uri="%s", response="%s"' % \
             (username, self.challenge['realm'], self.challenge['nonce'],
@@ -156,3 +160,5 @@ class SipDigestAuth():
             digest = '%s, algorithm=%s' % (digest, self.challenge['algorithm'])
 
         return digest
+
+# pylint: enable=invalid-name,too-many-arguments,too-many-branches,fixme

@@ -1,6 +1,6 @@
 import sys
 import unittest
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
 sys.path.append('..')
 from digestauth import SipDigestAuth
@@ -20,7 +20,7 @@ class TestDigestAuth(unittest.TestCase):
         sda._force_nonce = '0a4f113b'
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         self.assertFalse(hdr_auth is None)
         self.assertFalse(auth_dict is None)
         self.assertFalse('cnonce' in auth_dict)
@@ -42,7 +42,7 @@ class TestDigestAuth(unittest.TestCase):
         self.assertEqual(sda._force_nonce, sda.get_new_cnonce('banana'))
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         self.assertFalse(hdr_auth is None)
         self.assertFalse(auth_dict is None)
         self.assertEqual(auth_dict['username'], 'bob')
@@ -64,7 +64,7 @@ class TestDigestAuth(unittest.TestCase):
         sda._force_nonce = '0a4f113b'
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         self.assertFalse(hdr_auth is None)
         self.assertFalse(auth_dict is None)
         self.assertEqual(auth_dict['username'], 'bob')
@@ -87,7 +87,7 @@ class TestDigestAuth(unittest.TestCase):
         sda._force_nonce = '0a4f113b'
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         self.assertFalse(hdr_auth is None)
         self.assertFalse(auth_dict is None)
         self.assertEqual(auth_dict['username'], 'bob')
@@ -111,7 +111,7 @@ class TestDigestAuth(unittest.TestCase):
         body_md5sum = 'c1ed018b8ec4a3b170c0921f5b564e48'
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd, body_md5sum)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         self.assertFalse(hdr_auth is None)
         self.assertFalse(auth_dict is None)
         self.assertEqual(auth_dict['username'], 'bob')
@@ -135,7 +135,7 @@ class TestDigestAuth(unittest.TestCase):
         body_md5sum = 'c1ed018b8ec4a3b170c0921f5b564e48'
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd, body_md5sum)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         self.assertFalse(hdr_auth is None)
         self.assertFalse(auth_dict is None)
         self.assertEqual(auth_dict['username'], 'bob')
@@ -160,13 +160,13 @@ class TestRepeatAuthBehavior(unittest.TestCase):
         sda.parse_challenge(www_authenticate)
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         nc_values.append(int(auth_dict['nc'],16))
         cnonce_values.append(auth_dict['cnonce'])
 
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         nc_values.append(int(auth_dict['nc'],16))
         cnonce_values.append(auth_dict['cnonce'])
 
@@ -183,13 +183,13 @@ class TestRepeatAuthBehavior(unittest.TestCase):
         sda.parse_challenge(www_authenticate)
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         nc_values.append(int(auth_dict['nc'],16))
         cnonce_values.append(auth_dict['cnonce'])
 
         hdr_auth = sda.get_auth_digest('INVITE', 'sip:bob@biloxi.com', 'bob', bob_pwd)
         _, kv = hdr_auth.split(' ', 1)
-        auth_dict = urllib2.parse_keqv_list(urllib2.parse_http_list(kv))
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
         nc_values.append(int(auth_dict['nc'],16))
         cnonce_values.append(auth_dict['cnonce'])
 

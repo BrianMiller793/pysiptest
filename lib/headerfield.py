@@ -4,6 +4,7 @@
 # Author: Brian C. Miller
 # Copyright 2017, all rights reserved
 # Date: February 22, 2017
+# pylint: disable=fixme,too-many-lines,invalid-name,super-with-arguments,unused-argument,too-many-instance-attributes
 
 import inspect
 import random
@@ -57,7 +58,7 @@ def get_valid_fields(sip_msg):
     # allfields is collection of tuples: (name, class)
     validfields = []
     for field in allfields:
-        if field[1].isvalid(sip_msg.msg_type, sip_msg.method) == True:
+        if field[1].isvalid(sip_msg.msg_type, sip_msg.method):
             validfields.append(field[1]())
     return validfields
 
@@ -72,7 +73,7 @@ def get_mandatory_fields(sip_msg):
 
     mandatoryfields = []
     for field in allfields:
-        if field[1].ismandatory(sip_msg.msg_type, sip_msg.method) == True:
+        if field[1].ismandatory(sip_msg.msg_type, sip_msg.method):
             mandatoryfields.append(field[1]())
     return mandatoryfields
 
@@ -88,7 +89,7 @@ def instance_by_name(field_name):
         except KeyError:
             return None
     else:
-        field_name = string.replace(field_name, '-', '_')
+        field_name = field_name.replace('-', '_')
 
     try:
         instance = getattr(sys.modules[__name__], field_name)()
@@ -96,7 +97,7 @@ def instance_by_name(field_name):
         return None
     return instance or None
 
-class HeaderField(object):
+class HeaderField():
     """ Base class for a SIP message header field. """
     # pylint: disable=too-many-public-methods,invalid-name
 
@@ -106,6 +107,8 @@ class HeaderField(object):
         self.name = None
         self.value = None
         self.order = 99
+        self._shortname = ''
+        self._longname = ''
 
     def __str__(self):
         return "{}: {}".format(
@@ -1426,4 +1429,3 @@ class WWW_Authenticate(HeaderField):
         """ Determine whether field is mandatory for the SIP message type. """
         return WWW_Authenticate.value_for_type(
             WWW_Authenticate.mandatory, msgtype, method, True) is not None
-

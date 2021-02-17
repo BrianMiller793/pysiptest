@@ -1,10 +1,10 @@
 """ Provides partial implementation of RFC 3261, for UAC and UAS. """
-# pylint: disable=too-few-public-methods,too-many-ancestors
+# pylint: disable=too-few-public-methods,too-many-ancestors,super-with-arguments,unused-argument,useless-super-delegation
 # vim: set ai ts=4 sw=4 expandtab:
 
 import headerfield as hf
 
-class SipMessage(object):
+class SipMessage():
     """ Minimum SIP Request header """
 
     # Branch: Value shall be unique per request in space and time,
@@ -26,23 +26,19 @@ class SipMessage(object):
 
     def init_valid(self, msgtype=None, method=None):
         """ Initialize with valid headers. """
-        pass
 
     def init_mandatory(self, msgtype=None, method=None):
         """ Initialize with valid mandatory headers. """
-        pass
-        
+
     def sort(self):
         """ Sort header fields. """
         self.hdrfields = sorted(self.hdrfields, key=lambda o: o.order)
 
     def init_from_msg(self, prevmsg):
         """ Initialize values based on previous message. """
-        pass
 
     def to_string(self):
         """ Get string value of headers and body. """
-        pass
 
 class Rfc3261(SipMessage):
     """ Messages based on RFC 3261 """
@@ -62,7 +58,6 @@ class Request(Rfc3261):
 
     def initmandatory(self):
         """ Initialize with mandatory header fields. """
-        pass
 
 #
 # SIP Methods are sorted by name
@@ -107,7 +102,7 @@ class Response(Rfc3261):
     """ RFC 3261, 7.2, Responses """
     # Status-Line  =  SIP-Version SP Status-Code SP Reason-Phrase CRLF
     def __init__(self, prevmsg=None):
-        super(Register, self).__init__()
+        super(Response, self).__init__()
         self.type = "r"
         self.status_code = 0
         self.reason_phrase = ""
@@ -213,4 +208,3 @@ class Info(Rfc6086):
         self.method = "INFO"
 
 ##############################################################
-
