@@ -1,9 +1,15 @@
+# vim: set ai ts=4 sw=4 expandtab:
+
+import logging
 import sys
 import unittest
 import urllib.request, urllib.error, urllib.parse
 
 sys.path.append('..')
 from digestauth import SipDigestAuth
+
+# Author: Brian C. Miller
+# Copyright 2017-2022, all rights reserved
 
 # https://tools.ietf.org/html/draft-smith-sipping-auth-examples-01#section-3
 # Worked examples
@@ -196,6 +202,57 @@ class TestRepeatAuthBehavior(unittest.TestCase):
         self.assertTrue(nc_values[0] + 1 == nc_values[1])
         self.assertEqual(cnonce_values[0], cnonce_values[1])
 
+    def test_RFC2617_sec3_5_example(self):
+        nc_values = []
+        cnonce_values = []
+        # doc_uri = 'http://www.nowhere.org/dir/index.html'
+        doc_uri = '/dir/index.html'
+        username = 'Mufasa'
+        password = 'Circle Of Life'
+        www_authenticate = 'Digest realm="testrealm@host.com", qop="auth,auth-int", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", opaque="5ccc069c403ebaf9f0171e9517f40e41"'
+        sda = SipDigestAuth()
+        sda._force_nonce = '0a4f113b'
+        sda.parse_challenge(www_authenticate)
+        hdr_auth = sda.get_auth_digest('GET', doc_uri, username, password)
+        #logging.warning(hdr_auth)
+
+        _, kv = hdr_auth.split(' ', 1)
+        auth_dict = urllib.request.parse_keqv_list(
+            urllib.request.parse_http_list(kv))
+        self.assertEqual(auth_dict['username'], 'Mufasa')
+        self.assertEqual(auth_dict['realm'], 'testrealm@host.com')
+        self.assertEqual(auth_dict['nonce'], 'dcd98b7102dd2f0e8b11d0f600bfb0c093')
+        self.assertEqual(auth_dict['uri'], '/dir/index.html')
+        self.assertEqual(auth_dict['qop'], 'auth')
+        self.assertEqual(auth_dict['nc'], '00000001')
+        self.assertEqual(auth_dict['cnonce'], '0a4f113b')
+        self.assertEqual(auth_dict['opaque'], '5ccc069c403ebaf9f0171e9517f40e41')
+        self.assertEqual(auth_dict['response'], '6629fae49393a05397450978507c4ef1')
+
+    def test_sofia_parse(self):
+        """Test parse of Sofia stack"""
+        # Note: Sofia sends UUID for nonce
+        nc_values = []
+        cnonce_values = []
+        user_uri = 'sip:Minion.Banana'
+        user = 'Minion.Banana'
+        password = "hownowbrowncow123"
+        www_authenticate = 'Digest realm="teo", nonce="c6b46784-82b9-4a38-8c7c-c46b50b37a60", algorithm=MD5, qop="auth"'
+        sda = SipDigestAuth()
+        sda.parse_challenge(www_authenticate)
+        hdr_auth = sda.get_auth_digest('REGISTER', user_uri, user, password)
+        # The next part is strictly for test
+        _, kv = hdr_auth.split(' ', 1)
+        auth_dict = urllib.request.parse_keqv_list(urllib.request.parse_http_list(kv))
+        self.assertEqual(auth_dict['realm'], 'teo')
+        self.assertEqual(auth_dict['nonce'], 'c6b46784-82b9-4a38-8c7c-c46b50b37a60')
+        self.assertEqual(auth_dict['algorithm'], 'MD5')
+        self.assertEqual(auth_dict['qop'], 'auth')
+        self.assertEqual(auth_dict['uri'], user_uri)
+        #self.assertEqual(auth_dict['response'], '')
+        self.assertEqual(auth_dict['qop'], 'auth')
+        #self.assertEqual(auth_dict['cnonce'], '')
+        self.assertEqual(auth_dict['nc'], '00000001')
 
 if __name__ == '__main__':
     unittest.main()

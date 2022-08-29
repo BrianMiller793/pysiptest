@@ -2,6 +2,9 @@
 # pylint: disable=too-few-public-methods,too-many-ancestors,super-with-arguments,unused-argument,useless-super-delegation
 # vim: set ai ts=4 sw=4 expandtab:
 
+import logging
+import uuid
+#import string
 import headerfield as hf
 
 class SipMessage():
@@ -18,27 +21,54 @@ class SipMessage():
 
     # ('', None),                 # p.26, 7 SIP Messages, start-line
 
-    def __init__(self, msgtype=None, method=None):
-        self.type = msgtype     # R, r, number >= 100
-        self.method = method    # Name of method
-        self.hdrfields = []
+    def __init__(self):
+        """
+        Initialize a SIP message, p.26, section 7
+
+        Parameters:
+        method: Name of request method
+        request_uri: Request URI value
+        status_code: Response code
+        reason_phrase: Common phrase describing code.
+        """
+        self.sip_version = 'SIP/2.0' # p.28
+        self.transport = None
+        self.hdr_fields = []    # List of fields, may be ordered
         self.body = None
+        self.cseq = 1           # 8.1.1.5 CSeq
+        self.call_id = str(uuid.uuid4())
 
-    def init_valid(self, msgtype=None, method=None):
-        """ Initialize with valid headers. """
+    def field(self, field_name):
+        """Return the field object by name, or None."""
+        hdr_field = [f
+            for f in self.hdr_fields if f.__class__.__name__ == field_name]
+        return hdr_field[0] if len(hdr_field) == 1 else None
 
-    def init_mandatory(self, msgtype=None, method=None):
-        """ Initialize with valid mandatory headers. """
+    def init_valid(self):
+        """ Initialize with all valid header fields. """
+        self.hdr_fields = hf.factory_valid_fields(self)
+
+    def init_mandatory(self):
+        """ Initialize with mandatory header fields. """
+        self.hdr_fields = hf.factory_mandatory_fields(self)
 
     def sort(self):
         """ Sort header fields. """
-        self.hdrfields = sorted(self.hdrfields, key=lambda o: o.order)
+        self.hdr_fields = sorted(self.hdr_fields, key=lambda o: o.order)
 
     def init_from_msg(self, prevmsg):
         """ Initialize values based on previous message. """
+        assert isinstance(prevmsg, str)
+        msg_dict = hf.msg2fields(prevmsg)
+        if len(self.hdr_fields) == 0:
+            self.init_mandatory()
+        for hfield in self.hdr_fields:
+            msg_field_name = hfield.__class__.__name__.replace('_', '-')
+            print(msg_field_name)
+            if msg_field_name in msg_dict.keys():
+                hfield.from_string(msg_dict[msg_field_name])
 
-    def to_string(self):
-        """ Get string value of headers and body. """
+        self.field('Content_Length').value = 0
 
 class Rfc3261(SipMessage):
     """ Messages based on RFC 3261 """
@@ -46,18 +76,65 @@ class Rfc3261(SipMessage):
         super(Rfc3261, self).__init__()
 
 class Request(Rfc3261):
-    """ SIP request message, RFC 3261, 7.1 """
+    """SIP request message, RFC 3261, 7.1
+
+    Parameters:
+    method: Name of request method
+    request_uri: Request URI value
+    status_code: Response code
+    reason_phrase: Common phrase describing code.
+    """
     # Request-Line  =  Method SP Request-URI SP SIP-Version CRLF
-    def __init__(self, msgtype=None, method=None):
+    def __init__(self, method=None, request_uri=None, transport=None):
         super(Request, self).__init__()
-        self.type = "R"
+        self.method = method    # Name of request method, p.27, 7.1 Requests
+        self.request_uri = request_uri
+        self.transport = transport
+        self.msg_type = "R"
 
-    def initvalid(self):
-        """ Initialize with all valid header fields. """
-        self.hdrfields = hf.get_valid_fields(self)
+        #letters = string.ascii_letters + string.digits
+        self.branch = hf.gen_new_branch()
 
-    def initmandatory(self):
-        """ Initialize with mandatory header fields. """
+    def __str__(self):
+        """Get string value of SIP request."""
+        return self.request_line + \
+            "\r\n" + "\r\n".join([h.__str__() for h in self.hdr_fields]) + \
+            '\r\n\r\n'
+
+    @property
+    def request_line(self):
+        """Request line, p.27, 7.1"""
+        return f"{self.method} {self.request_uri} {self.sip_version}"
+
+class Response(Rfc3261):
+    """RFC 3261, 7.2, SIP Responses
+
+    Parameters:
+    method: Name of request method
+    request_uri: Request URI value
+    status_code: Response code
+    reason_phrase: Common phrase describing code.
+    """
+    # Status-Line  =  SIP-Version SP Status-Code SP Reason-Phrase CRLF
+    def __init__(self, prevmsg=None, status_code=None, reason_phrase=None):
+        super(Response, self).__init__()
+        self.msg_type = "r"
+        self.status_code = status_code # Status code, p. 28, 7.2 Responses
+        self.reason_phrase = reason_phrase
+        self.prevmsg = prevmsg
+        self.method = None  # method value from prevmsg
+        self.branch = None  # branch value from prevmsg
+
+    def __str__(self):
+        """Get string value of SIP response."""
+        return self.status_line + \
+            "\r\n" + "\r\n".join([h.__str__() for h in self.hdr_fields]) + \
+            '\r\n\r\n'
+
+    @property
+    def status_line(self):
+        """Response status line, p.28, 7.2"""
+        return f"{self.sip_version} {self.status_code} {self.reason_phrase}"
 
 #
 # SIP Methods are sorted by name
@@ -98,16 +175,6 @@ class Register(Request):
         super(Register, self).__init__()
         self.method = "REGISTER"
 
-class Response(Rfc3261):
-    """ RFC 3261, 7.2, Responses """
-    # Status-Line  =  SIP-Version SP Status-Code SP Reason-Phrase CRLF
-    def __init__(self, prevmsg=None):
-        super(Response, self).__init__()
-        self.type = "r"
-        self.status_code = 0
-        self.reason_phrase = ""
-        self.prevmsg = prevmsg
-
 #####################################################################
 
 class Rfc3262(Rfc3261):
@@ -116,7 +183,7 @@ class Rfc3262(Rfc3261):
         super(Rfc3262, self).__init__()
 
 class Prack(Rfc3262):
-    """ Provisional Response ACKnowledgement (PRACK) method """
+    """Provisional Response ACKnowledgement (PRACK) method"""
     def __init__(self):
         super(Prack, self).__init__()
         self.method = "PRACK"
@@ -135,7 +202,7 @@ class Notify(Rfc3265):
         self.method = "NOTIFY"
 
 class Subscribe(Rfc3265):
-    """ Event Subscription """
+    """Event Subscription"""
     def __init__(self):
         super(Subscribe, self).__init__()
         self.method = "SUBSCRIBE"

@@ -1,3 +1,4 @@
+# vim: ai et ts=4 sw=4
 """
 digestauth.py
 
@@ -5,6 +6,9 @@ This class provides digest authentication per RFC 2617 for SIP RFC 3261.
 """
 # pylint: disable=invalid-name,too-many-arguments,too-many-branches,fixme
 # TODO: RFC 7616
+
+# Author: Brian C. Miller
+# Copyright 2017-2022, all rights reserved
 
 import hashlib
 import os
@@ -18,7 +22,7 @@ class SipDigestAuth():
     def __init__(self):
         self.__A1 = None
         self.__H = None
-        self._force_nonce = None
+        self._force_nonce = None # Change nonce value for tests
         self.nonce_count = 0
         self.cnonce = None
         self.challenge = {}
@@ -48,7 +52,7 @@ class SipDigestAuth():
         dig = hashlib.sha256(
             ("%u:%s:%s:%s" % (self.nonce_count, nonce, time.ctime(), \
 	    os.urandom(64).hex())).encode('ascii')).hexdigest()
-        return dig[:32] if self._force_nonce is None else self._force_nonce
+        return dig[:16] if self._force_nonce is None else self._force_nonce
 
     def parse_challenge(self, challenge):
         """ Parse WWW-Authenticate response header (3.2.1). """
@@ -80,7 +84,7 @@ class SipDigestAuth():
 
     def get_auth_digest(self, sip_method, digest_uri, username, password, request_body_hash=None):
         """
-        Create an MD5 authentication digest, per RFC 2617.
+        Create an MD5 authentication digest, per RFC 2617, sec 3.2.1.
 
         :param sip_method: The SIP method, such as REGISTER or INVITE
         :param digest_uri: The SIP URI from the request, e.g., sip:bob@biloxi.com
