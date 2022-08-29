@@ -12,7 +12,7 @@ from behave.api.async_step import async_run_until_complete
 import hamcrest as hc
 
 # pylint: disable=E0401,C0413,C0116,E0102
-sys.path.append('/home/bmiller/nuc1/projects/pysipunit/lib')
+sys.path.append(os.getenv('PYSIP_LIB_PATH'))
 
 from digestauth import SipDigestAuth
 import headerfield as hf

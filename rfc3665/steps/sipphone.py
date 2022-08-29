@@ -5,8 +5,9 @@ Protocol factory supporting SIP phone.
 
 import asyncio
 import logging
+import os
 import sys
-sys.path.append('/home/bmiller/nuc1/projects/pysipunit/lib')
+sys.path.append(os.getenv('PYSIP_LIB_PATH'))
 # pylint: disable=E0401,C0413
 import sipmsg
 
