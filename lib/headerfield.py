@@ -58,8 +58,7 @@ def gen_new_branch(length=10):
 
 def msg2fields(sipmsg):
     """Split SIP message into field-value dictionary."""
-    fields = sipmsg.strip().split('\n\n')
-    lines = fields[0].splitlines()
+    lines = [line for line in sipmsg.splitlines() if len(line)]
     # Split message header(s)
     d = {hf.split(':', 1)[0]: hf.split(':', 1)[1].strip() for hf in lines[1:]}
     # Split message start line
@@ -506,7 +505,7 @@ class Contact(HeaderField):
         super(Contact, self).__init__(oldvalue)
         self._shortname = 'm'
         self._longname = 'Contact'
-        self.contact_params = {} # key is addr-spec
+        self.contact_params = {} # key is addr-spec, data is tuple
         if oldvalue is not None:
             self.from_string(oldvalue)
 
@@ -520,11 +519,12 @@ class Contact(HeaderField):
             as_match = re.search('((?<=<)[^>]+)', param_values[0])
             display_name = dn_match[0] if dn_match is not None else None
             addr_spec = as_match[0] if as_match is not None else param_values[0]
-            self.contact_params[addr_spec] = \
-                [('display-name', display_name), ('addr-spec', addr_spec)]
+            self.contact_params[addr_spec] = {}
+            if display_name:
+                self.contact_params[addr_spec]['display-name'] = display_name
             for c_param in param_values[1:]:
-                p_name, p_value = c_param.split('=')
-                self.contact_params[addr_spec].append((p_name, p_value))
+                p_key, p_value = c_param.split('=')
+                self.contact_params[addr_spec][p_key] = p_value
         
     def __str__(self):
         param_str = ''
@@ -532,12 +532,14 @@ class Contact(HeaderField):
             param = self.contact_params[cp_key]
             if param_str != '':
                 param_str += ','
-            if param[0][1] is not None:
-                param_str += '"{}" <{}>'.format(param[0][1], param[1][1])
+            if 'display-name' in self.contact_params[cp_key].keys():
+                param_str += f'"{self.contact_params[cp_key]["display-name"]}" <{cp_key}>'
             else:
-                param_str += '{}'.format(param[1][1])
-            for pv in param[2:]:
-                param_str += ';{}={}'.format(pv[0], pv[1])
+                param_str += cp_key
+            for pk in param.keys():
+                if pk == 'display-name':
+                    continue
+                param_str += ';{}={}'.format(pk, param[pk])
         
         return "{}: {}".format(
             self._shortname if self.use_compact else self._longname,

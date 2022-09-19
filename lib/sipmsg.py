@@ -64,7 +64,6 @@ class SipMessage():
             self.init_mandatory()
         for hfield in self.hdr_fields:
             msg_field_name = hfield.__class__.__name__.replace('_', '-')
-            print(msg_field_name)
             if msg_field_name in msg_dict.keys():
                 hfield.from_string(msg_dict[msg_field_name])
 

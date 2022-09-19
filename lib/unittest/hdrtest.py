@@ -138,13 +138,10 @@ class TestHeaderField(unittest.TestCase):
         key = 'sip:watson@worcester.bell-telephone.com'
         o.from_string(ts1)
         self.assertEqual(1, len(o.contact_params))
-        self.assertEqual(4, len(o.contact_params[key]))
-        self.assertEqual('Mr. Watson', o.contact_params[key][0][1])
-        self.assertEqual('sip:watson@worcester.bell-telephone.com', o.contact_params[key][1][1])
-        self.assertEqual('q', o.contact_params[key][2][0])
-        self.assertEqual('0.7', o.contact_params[key][2][1])
-        self.assertEqual('expires', o.contact_params[key][3][0])
-        self.assertEqual('3600', o.contact_params[key][3][1])
+        self.assertEqual(3, len(o.contact_params[key]))
+        self.assertEqual('Mr. Watson', o.contact_params[key]['display-name'])
+        self.assertEqual('0.7', o.contact_params[key]['q'])
+        self.assertEqual('3600', o.contact_params[key]['expires'])
 
     def test_Contact_from_str2(self):
         '''Test Contact from_str'''
@@ -154,10 +151,9 @@ class TestHeaderField(unittest.TestCase):
         key2 = 'mailto:watson@bell-telephone.com'
         o.from_string(ts1)
         self.assertEqual(2, len(o.contact_params))
-        self.assertEqual(4, len(o.contact_params[key1]))
-        self.assertEqual(3, len(o.contact_params[key2]))
-        self.assertEqual('q', o.contact_params[key2][2][0])
-        self.assertEqual('0.1', o.contact_params[key2][2][1])
+        self.assertEqual(3, len(o.contact_params[key1]))
+        self.assertEqual(2, len(o.contact_params[key2]))
+        self.assertEqual('0.1', o.contact_params[key2]['q'])
 
     def test_Contact_from_str3(self):
         '''Test Contact from_str'''
@@ -166,9 +162,7 @@ class TestHeaderField(unittest.TestCase):
         key = ts1
         o.from_string(ts1)
         self.assertEqual(1, len(o.contact_params))
-        self.assertEqual(2, len(o.contact_params[key]))
-        self.assertEqual(None, o.contact_params[key][0][1])
-        self.assertEqual(ts1, o.contact_params[key][1][1])
+        self.assertEqual(0, len(o.contact_params[key]))
 
     def test_Contact_to_str1(self):
         '''Test Contact __str__'''
