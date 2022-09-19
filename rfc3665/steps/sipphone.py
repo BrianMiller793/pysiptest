@@ -49,3 +49,28 @@ class SipPhoneUdpClient:
     def error_received(self, exc):              # pylint: disable-msg=R0201,W0613
         '''Datagram protcol: Called when an error is received.'''
         logging.info('error_received')
+
+class AutoReply(SipPhoneUdpClient):
+    '''
+    Automatically reply with OK, such as INFO, NOTIFY, OPTIONS and UPDATE.
+    '''
+    def __init__(self, on_con_lost):
+        super().__init__(on_con_lost)
+        self.auto_reply = ['INFO', 'NOTIFY', 'OPTIONS', 'UPDATE']
+
+    def datagram_received(self, data, addr):    # pylint: disable=W0613
+        '''Datagram protcol: Called when a datagram is received.'''
+        sip_msg = data.decode()
+        self.recvd_pkts.append(sip_msg)
+        sip_method = sip_msg.split(maxsplit=1)[0]
+        logging.info('datagram_received: %s', sip_method)
+        if sip_method in self.auto_reply:
+            logging.info('datagram_received: auto reply to %s', sip_method)
+            logging.debug('datagram_received: %s', sip_msg)
+            response = sipmsg.Response(status_code=200, reason_phrase='OK')
+            response.method = sip_method
+            response.init_from_msg(sip_msg)
+            response.sort()
+            self.sendto(response)
+        else:
+            self.rcv_queue.put_nowait(sip_msg)
