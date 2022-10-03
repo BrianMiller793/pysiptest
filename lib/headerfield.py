@@ -7,6 +7,7 @@
 # pylint: disable=fixme,too-many-lines,invalid-name,super-with-arguments,unused-argument,too-many-instance-attributes
 
 import inspect
+import itertools
 import os
 import random
 import re
@@ -56,14 +57,17 @@ def gen_new_branch(length=10):
     """Generate a value for a new branch ID."""
     return VIA_COOKIE + gen_rand_str(length)
 
-def msg2fields(sipmsg):
+def msg2fields(sipmsg:str) -> dict:
     """Split SIP message into field-value dictionary."""
-    lines = [line for line in sipmsg.splitlines() if len(line)]
-    # Split message header(s)
-    d = {hf.split(':', 1)[0]: hf.split(':', 1)[1].strip() for hf in lines[1:]}
-    # Split message start line
-    d[lines[0].split(' ', 1)[0]] = lines[0].split(' ', 1)[1]
-    return d
+    # Use takewhile to split the message until an empty line
+    # between fields and body
+    line_iter = itertools.takewhile(lambda x : len(x), sipmsg.splitlines())
+    lines = [line for line in line_iter]
+
+    # Convert list to dictionary, cleaning up keys and values
+    return {
+        hf.split(' ', 1)[0].rstrip(': '): hf.split(' ', 1)[1].strip()
+        for hf in lines}
 
 def by_name(name):
     '''Return a field instance by its name from a list of fields.'''
@@ -131,10 +135,11 @@ class HeaderField():
     """Base class for a SIP message header field."""
     # pylint: disable=too-many-public-methods,invalid-name
 
-    def __init__(self, oldvalue=None, sipmsg=None):
+    def __init__(self, value=None, sipmsg=None):
         """Initialize a new instance of HeaderField. """
+        self.value = value
+        self.sipmsg = sipmsg
         self.use_compact = False
-        self.value = oldvalue
         self.order = 50
         self._shortname = ''
         self._longname = ''
@@ -165,21 +170,22 @@ class HeaderField():
         :returns: None if field is not valid.
        """
         for hf_action in where_set:
+            valid_methods = hf_action[1].split(',') if hf_action[1] else None
             if isinstance(hf_action[0], tuple) and \
                 isinstance(msg_type, int) and \
                 hf_action[0][0] <= msg_type and \
                 hf_action[0][1] >= msg_type and \
-                method in hf_action[1]:
+                method in valid_methods:
                 return hf_action[2](new_value, old_value)
             if isinstance(hf_action[0], int) and \
                 isinstance(msg_type, int) and \
                 hf_action[0] == msg_type and \
-                method in hf_action[1]:
+                method in valid_methods:
                 return hf_action[2](new_value, old_value)
             if isinstance(hf_action[0], str) and \
                 isinstance(msg_type, str) and \
                 msg_type in hf_action[0] and \
-                method in hf_action[1]:
+                method in valid_methods:
                 return hf_action[2](new_value, old_value)
         return None
 
@@ -226,11 +232,10 @@ class Accept(HeaderField):
         ('R', "OPTION", _R),
         ((200, 299), "OPTION", _2xx))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Accept, self).__init__(oldvalue)
+    def __init__(self, value='application/sdp', sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Accept"
         self._longname = "Accept"
-        self.value = 'application/sdp'
 
     @staticmethod
     def isvalid(msgtype, method):
@@ -261,8 +266,8 @@ class Accept_Encoding(HeaderField):
         ((200, 299), "OPTION", _2xx),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Accept_Encoding, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Accept-Encoding"
         self._longname = "Accept-Encoding"
 
@@ -295,11 +300,10 @@ class Accept_Language(HeaderField):
         ((200, 299), "OPTION", _2xx),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Accept_Language, self).__init__(oldvalue)
+    def __init__(self, value='en-us', sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Accept-Language"
         self._longname = "Accept-Language"
-        self.value = 'en-us'
 
     @staticmethod
     def isvalid(msgtype, method):
@@ -325,8 +329,8 @@ class Alert_Info(HeaderField):
         ('R', "INVITE", _R),
         (180, "INVITE", _180))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Alert_Info, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Alert-Info"
         self._longname = "Alert-Info"
 
@@ -361,8 +365,8 @@ class Allow(HeaderField):
         ((200, 299), "INVITE,OPTION", _2xx),
         (405, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _405))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Allow, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Allow"
         self._longname = "Allow"
 
@@ -387,8 +391,8 @@ class Authentication_Info(HeaderField):
         ((200, 299), "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Authentication_Info, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Authentication-Info"
         self._longname = "Authentication-Info"
 
@@ -412,8 +416,8 @@ class Authorization(HeaderField):
         ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Authorization, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Authorization"
         self._longname = "Authorization"
 
@@ -435,12 +439,12 @@ class Call_ID(HeaderField):
     # TODO Copied from request to response
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Call_ID, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'i'
         self._longname = 'Call-ID'
         self.order = 6
-        self.value = sipmsg.call_id
+        self.value = sipmsg.call_id if sipmsg is not None else None
 
     @staticmethod
     def isvalid(msgtype, method):
@@ -461,8 +465,8 @@ class Call_Info(HeaderField):
         ('Rr', "INVITE,OPTION,REGISTER", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Call_Info, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Call-Info"
         self._longname = "Call-Info"
 
@@ -501,13 +505,13 @@ class Contact(HeaderField):
         ((200, 299), "INVITE,SUBSCRIBE", _2xx),
         ((300, 399), "SUBSCRIBE,NOTIFY", _2xx))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Contact, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'm'
         self._longname = 'Contact'
         self.contact_params = {} # key is addr-spec, data is tuple
-        if oldvalue is not None:
-            self.from_string(oldvalue)
+        if value is not None:
+            self.from_string(value)
 
     def from_string(self, hdr_value):
         # Parse Contact, RFC 3261 p.228
@@ -566,8 +570,8 @@ class Content_Disposition(HeaderField):
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Content_Disposition, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Content-Disposition"
         self._longname = "Content-Disposition"
 
@@ -591,8 +595,8 @@ class Content_Encoding(HeaderField):
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Content_Encoding, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'e'
         self._longname = 'Content-Encoding'
 
@@ -616,11 +620,10 @@ class Content_Language(HeaderField):
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Content_Language, self).__init__(oldvalue)
+    def __init__(self, value='en-us', sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Content-Language"
         self._longname = "Content-Language"
-        self.value = 'en-us'
 
     @staticmethod
     def isvalid(msgtype, method):
@@ -641,11 +644,10 @@ class Content_Length(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Content-Length                 ar    t   t   t   t   t   t   t   t   t
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Content_Length, self).__init__(oldvalue)
+    def __init__(self, value=0, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'l'
         self._longname = "Content-Length"
-        self.value = 0
         self.order = 99
 
     @staticmethod
@@ -674,8 +676,8 @@ class Content_Type(HeaderField):
         ('Rr', "ACK,BYE,INVITE,OPTION", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Content_Type, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'c'
         self._longname = 'Content-Type'
 
@@ -688,8 +690,9 @@ class Content_Type(HeaderField):
     @staticmethod
     def ismandatory(msgtype, method):
         """Determine whether field is mandatory for the SIP message type."""
-        return Content_Type.value_for_type(
-            Content_Type.mandatory, msgtype, method, True) is not None
+        return False
+        #return Content_Type.value_for_type(
+        #    Content_Type.mandatory, msgtype, method, True) is not None
 
 class CSeq(HeaderField):
     """Contains a sequence number and the request method. Sec 20.16"""
@@ -698,14 +701,13 @@ class CSeq(HeaderField):
     # TODO Copied from request to response
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(CSeq, self).__init__(oldvalue)
+    def __init__(self, value=0, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "CSeq"
         self._longname = "CSeq"
         self.order = 5
         self.sipmsg = sipmsg
         self.method = sipmsg.method if sipmsg is not None else None
-        self.value = 0
 
     def __str__(self):
         assert self.method is not None
@@ -738,8 +740,8 @@ class Date(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Date                            a    o   o   o   o   o   o   o   o   o
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Date, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Date"
         self._longname = "Date"
 
@@ -762,8 +764,8 @@ class Error_Info(HeaderField):
         ((300, 699), "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _300),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Error_Info, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Error-Info"
         self._longname = "Error-Info"
 
@@ -791,8 +793,8 @@ class Expires(HeaderField):
         ((200, 299), "INVITE,REGISTER,SUBSCRIBE", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Expires, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Expires"
         self._longname = "Expires"
 
@@ -815,8 +817,8 @@ class From(HeaderField):
     # TODO Copied from request to response
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(From, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'f'
         self._longname = 'From'
         self.order = 3
@@ -857,8 +859,8 @@ class In_Reply_To(HeaderField):
         ('R', "INVITE", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(In_Reply_To, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "In-Reply-To"
         self._longname = "In-Reply-To"
 
@@ -885,11 +887,10 @@ class Max_Forwards(HeaderField):
         ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Max_Forwards, self).__init__(oldvalue)
+    def __init__(self, value=70, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Max-Forwards"
         self._longname = "Max-Forwards"
-        self.value = 70
         self.order = 2
 
     @staticmethod
@@ -913,8 +914,8 @@ class MIME_Version(HeaderField):
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(MIME_Version, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "MIME-Version"
         self._longname = "MIME-Version"
 
@@ -941,8 +942,8 @@ class Min_Expires(HeaderField):
         (423, "REGISTER", _423),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Min_Expires, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Min-Expires"
         self._longname = "Min-Expires"
 
@@ -967,8 +968,8 @@ class Organization(HeaderField):
         ('Rr', "INVITE,OPTION,REGISTER,SUBSCRIBE", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Organization, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Organization"
         self._longname = "Organization"
 
@@ -992,8 +993,8 @@ class Priority(HeaderField):
         ('R', "INVITE,SUBSCRIBE", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Priority, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Priority"
         self._longname = "Priority"
 
@@ -1022,8 +1023,8 @@ class Proxy_Authenticate(HeaderField):
         (407, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _407),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Proxy_Authenticate, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Proxy-Authenticate"
         self._longname = "Proxy-Authenticate"
 
@@ -1048,8 +1049,8 @@ class Proxy_Authorization(HeaderField):
         ('R', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Proxy_Authorization, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Proxy-Authorization"
         self._longname = "Proxy-Authorization"
 
@@ -1073,8 +1074,8 @@ class Proxy_Require(HeaderField):
         ('R', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Proxy_Require, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Proxy-Require"
         self._longname = "Proxy-Require"
 
@@ -1101,8 +1102,8 @@ class Record_Route(HeaderField):
         ((200, 299), "BYE,CANCEL,INVITE,OPTION,PRACK,SUBSCRIBE,NOTIFY", _2xx),
         ((180, 189), "BYE,CANCEL,INVITE,OPTION,PRACK,SUBSCRIBE,NOTIFY", _2xx))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Record_Route, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Record-Route"
         self._longname = "Record-Route"
 
@@ -1126,8 +1127,8 @@ class Reply_To(HeaderField):
         ('Rr', "INVITE", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Reply_To, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Reply-To"
         self._longname = "Reply-To"
 
@@ -1151,8 +1152,8 @@ class Require(HeaderField):
         ('Rr', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Require, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Require"
         self._longname = "Require"
 
@@ -1186,8 +1187,8 @@ class Retry_After(HeaderField):
         (600, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (603, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Retry_After, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Retry-After"
         self._longname = "Retry-After"
 
@@ -1211,8 +1212,8 @@ class Route(HeaderField):
         ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Route, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Route"
         self._longname = "Route"
 
@@ -1236,8 +1237,8 @@ class Server(HeaderField):
         ('r', "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Server, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Server"
         self._longname = "Server"
 
@@ -1261,8 +1262,8 @@ class Subject(HeaderField):
         ('R', "INVITE", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Subject, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 's'
         self._longname = 'Subject'
 
@@ -1291,8 +1292,8 @@ class Supported(HeaderField):
         ('R', "INVITE", _R),
         ((200, 299), "INVITE,OPTION", _2xx))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Supported, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'k'
         self._longname = 'Supported'
 
@@ -1313,8 +1314,8 @@ class Timestamp(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Timestamp                                    o   o   o   o   o   o   o   o   o
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Timestamp, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Timestamp"
         self._longname = "Timestamp"
 
@@ -1339,8 +1340,8 @@ class To(HeaderField):
     # no dialog is established, no tag is present."
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(To, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 't'
         self._longname = 'To'
         self.order = 4
@@ -1384,8 +1385,8 @@ class Unsupported(HeaderField):
         (420, "BYE,INVITE,OPTION,REGISTER,PRACK", _420),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Unsupported, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Unsupported"
         self._longname = "Unsupported"
 
@@ -1406,8 +1407,8 @@ class User_Agent(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # User-Agent                                   o   o   o   o   o   o   o   o   o
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(User_Agent, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "User-Agent"
         self._longname = "User-Agent"
 
@@ -1432,8 +1433,8 @@ class Via(HeaderField):
     # TODO Copied from request to response
     # TODO Equality operator, 20.42
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Via, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = 'v'
         self._longname = 'Via'
         self.order = 1
@@ -1449,7 +1450,6 @@ class Via(HeaderField):
         self.via_params['branch'] = None
         self.via_params['protocol-name'] = 'SIP'
         self.via_params['protocol-version'] = '2.0'
-        self.value = oldvalue
         if sipmsg is not None:
             # 'UDP', 'TCP', 'TLS', 'SCTP'
             self.via_params['transport'] = sipmsg.transport
@@ -1525,8 +1525,8 @@ class Warning(HeaderField):
         ('r', "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
         ('R', 'NOTIFY', _r))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Warning, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Warning"
         self._longname = "Warning"
 
@@ -1555,8 +1555,8 @@ class WWW_Authenticate(HeaderField):
         (401, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _401),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(WWW_Authenticate, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "WWW-Authenticate"
         self._longname = "WWW-Authenticate"
 
@@ -1588,8 +1588,8 @@ class RAck(HeaderField):
         ('R', "PRACK", _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(RAck, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "RAck"
         self._longname = "RAck"
         self.sipmsg = sipmsg
@@ -1632,8 +1632,8 @@ class RSeq(HeaderField):
         ((100, 199), "INVITE", _1xx),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(RSeq, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "RSeq"
         self._longname = "RSeq"
         self.sipmsg = sipmsg
@@ -1677,13 +1677,11 @@ class Allow_Events(HeaderField):
         (489, 'SUBSCRIBE,NOTIFY', _489),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Allow_Events, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "u"
         self._longname = "Allow-Events"
         self.order = 50
-        self.sipmsg = sipmsg
-        self.value = None
 
     @staticmethod
     def isvalid(msgtype, method):
@@ -1716,13 +1714,11 @@ class Subscription_State(HeaderField):
         ('R', 'NOTIFY', _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Subscription_State, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "Subscription-State"
         self._longname = "Subscription-State"
         self.order = 50
-        self.sipmsg = sipmsg
-        self.value = None
 
     def from_string(self, hdr_value):
         # Value is not set from previous header.
@@ -1752,13 +1748,11 @@ class Event(HeaderField):
         ('R', 'SUBSCRIBE,NOTIFY', _R),
         (None, None, None))
 
-    def __init__(self, oldvalue=None, sipmsg=None):
-        super(Event, self).__init__(oldvalue)
+    def __init__(self, value=None, sipmsg=None):
+        super().__init__(value, sipmsg)
         self._shortname = "o"
         self._longname = "Event"
         self.order = 50
-        self.sipmsg = sipmsg
-        self.value = None
 
     @staticmethod
     def isvalid(msgtype, method):

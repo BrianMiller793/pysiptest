@@ -188,6 +188,14 @@ class TestHeaderField(unittest.TestCase):
         s_val = str(o)
         self.assertEqual('Contact: ' + ts1, s_val)
 
+    def test_Content_Type(self):
+        '''Test Content-Type'''
+        expected = 'text/plain'
+        o = hf.Content_Type(value=expected)
+        self.assertEqual(o.value, expected)
+        expected = 'Content-Type: ' + expected
+        self.assertEqual(str(o), expected)
+
     def test_where_isvalid(self):
         """ Verify isvalid() operation """
         # Also verifies HeaderField.value_for_type()
@@ -350,7 +358,6 @@ class TestHeaderField(unittest.TestCase):
         self.assertTrue(exists(fields, "Call_ID"))
         self.assertTrue(exists(fields, "Contact"))
         self.assertTrue(exists(fields, "Content_Length"))
-        self.assertTrue(exists(fields, "Content_Type"))
         self.assertTrue(exists(fields, "CSeq"))
         self.assertTrue(exists(fields, "From"))
         self.assertTrue(exists(fields, "Max_Forwards"))
