@@ -2,8 +2,7 @@
 # pylint: disable=too-few-public-methods,too-many-ancestors,super-with-arguments,unused-argument,useless-super-delegation
 # vim: set ai ts=4 sw=4 expandtab:
 
-import logging
-import uuid
+#import logging
 import headerfield as hf
 
 class SipMessage():
@@ -33,15 +32,24 @@ class SipMessage():
         self.sip_version = 'SIP/2.0' # p.28
         self.transport = None
         self.hdr_fields = []    # List of fields, may be ordered
-        self.body = ''
-        self.cseq = 1           # 8.1.1.5 CSeq
-        self.call_id = str(uuid.uuid4())
+        self._body = ''
 
     def field(self, field_name):
         """Return the field object by name, or None."""
         hdr_field = [f
             for f in self.hdr_fields if f.__class__.__name__ == field_name]
         return hdr_field[0] if len(hdr_field) == 1 else None
+
+    @property
+    def body(self):
+        '''Get the value of SIP message body.'''
+        return self._body
+
+    @body.setter
+    def body(self, bvalue):
+        '''Set the value of SIP message body.'''
+        self._body = bvalue
+        self.field('Content_Length').value = len(bvalue)
 
     def init_valid(self):
         """ Initialize with all valid header fields. """
@@ -90,13 +98,19 @@ class Request(Rfc3261):
         self.transport = transport
         self.msg_type = "R"
 
-        #letters = string.ascii_letters + string.digits
         self.branch = hf.gen_new_branch()
+
+    @staticmethod
+    def get_method(sip_msg:str) -> str:
+        '''Return the method from a request message.'''
+        if sip_msg.startswith('SIP/2.0'):
+            return None
+        return sip_msg.split(maxsplit=1)[0]
 
     def __str__(self):
         """Get string value of SIP request."""
-        return self.request_line + \
-            "\r\n" + "\r\n".join([h.__str__() for h in self.hdr_fields]) + \
+        return self.request_line + "\r\n" + \
+            "\r\n".join([h.__str__() for h in self.hdr_fields]) + \
             '\r\n\r\n' + self.body
 
     @property
@@ -125,11 +139,18 @@ class Response(Rfc3261):
             self.method = prev_msg.split(maxsplit=1)[0]
             self.init_from_msg(prev_msg)
 
+    @staticmethod
+    def get_code(sip_msg:str) -> str:
+        '''Return the response code from a response message.'''
+        if sip_msg.startswith('SIP/2.0'):
+            return sip_msg.split(maxsplit=2)[1]
+        return None
+
     def __str__(self):
         """Get string value of SIP response."""
-        return self.status_line + \
-            "\r\n" + "\r\n".join([h.__str__() for h in self.hdr_fields]) + \
-            '\r\n\r\n'
+        return self.status_line + "\r\n" + \
+            "\r\n".join([h.__str__() for h in self.hdr_fields]) + \
+            '\r\n\r\n' + self.body
 
     @property
     def status_line(self):

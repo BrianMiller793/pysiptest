@@ -1,8 +1,8 @@
 # vim: set ai ts=4 sw=4 expandtab:
+# pylint: disable=C0301,C0114,C0103,C0112,R0904,C0116,W0212,C0115,W0107,C0413
 
-import sys
 import unittest
-
+import sys
 sys.path.append('..')
 
 import headerfield as hf
@@ -12,11 +12,10 @@ def exists(objects, name):
         if o.__class__.__name__ == name: return True
     return False
 
-class TestSipMsg(object):
+class TestSipMsg():
     def __init__(self):
         self.method = None
         self.msg_type = None
-        self.cseq = 1
         self.call_id = '31415926'
         self.transport = 'UDP'
         self.branch = 'branch12345'
@@ -38,12 +37,11 @@ class TestHeaderField(unittest.TestCase):
 
     def test_CSeq_with_sipmsg(self):
         """ Test CSeq __str__ functionality. """
-        sipmsg = TestSipMsg()
-        sipmsg.method = 'banana'
-        sipmsg.cseq = 1
-        o = hf.CSeq(sipmsg=sipmsg)
+        o = hf.CSeq()
+        o.value = 1
+        o.method = 'banana'
         self.assertEqual(str(o), "CSeq: 1 banana")
-        sipmsg.cseq += 1
+        o.value += 1
         self.assertEqual(str(o), "CSeq: 2 banana")
 
     def test_From(self):
@@ -76,64 +74,64 @@ class TestHeaderField(unittest.TestCase):
         o.via_params['protocol-version'] = 'abc'
         o.via_params['transport'] = 'abc'
         o.via_params['address'] = 'abc'
-        self.assertRaises(AssertionError, lambda: o.__str__())
+        self.assertRaises(AssertionError, lambda: str(o))
 
         o.value = None
         o.via_params['protocol-name'] = 'abc'
         o.via_params['protocol-version'] = None
         o.via_params['transport'] = 'abc'
         o.via_params['address'] = 'abc'
-        self.assertRaises(AssertionError, lambda: o.__str__())
+        self.assertRaises(AssertionError, lambda: str(o))
 
         o.value = None
         o.via_params['protocol-name'] = 'abc'
         o.via_params['protocol-version'] = 'abc'
         o.via_params['transport'] = None
         o.via_params['address'] = 'abc'
-        self.assertRaises(AssertionError, lambda: o.__str__())
+        self.assertRaises(AssertionError, lambda: str(o))
 
         o.value = None
         o.via_params['protocol-name'] = 'abc'
         o.via_params['protocol-version'] = 'abc'
         o.via_params['transport'] = 'abc'
         o.via_params['address'] = None
-        self.assertRaises(AssertionError, lambda: o.__str__())
+        self.assertRaises(AssertionError, lambda: str(o))
 
     def test_Via_str(self):
         """ Test Via __str__ functionality. """
-        o = hf.Via(sipmsg=TestSipMsg())
+        o = hf.Via()
         o.via_params['branch'] = 'b1234'
         o.via_params['transport'] = 'UDP'
         o.via_params['address'] = "banana.apple"
-        self.assertEqual(o.__str__(),
+        self.assertEqual(str(o),
             "Via: SIP/2.0/UDP banana.apple;branch=b1234")
 
         o.value = None
         o.via_params['maddr'] = 'm1234'
-        self.assertEqual(o.__str__(),
+        self.assertEqual(str(o),
             "Via: SIP/2.0/UDP banana.apple;maddr=m1234;branch=b1234")
 
         o.value = None
         o.via_params['maddr'] = None
         o.via_params['ttl'] = 123
-        self.assertEqual(o.__str__(),
+        self.assertEqual(str(o),
             "Via: SIP/2.0/UDP banana.apple;ttl=123;branch=b1234")
 
         o.value = None
         o.via_params['ttl'] = None
         o.via_params['received'] = 'rcvd123'
-        self.assertEqual(o.__str__(),
+        self.assertEqual(str(o),
             "Via: SIP/2.0/UDP banana.apple;received=rcvd123;branch=b1234")
 
         o.value = None
         o.via_params['received'] = None
         o.use_compact = True
-        self.assertEqual(o.__str__(),
+        self.assertEqual(str(o),
             "v: SIP/2.0/UDP banana.apple;branch=b1234")
 
     def test_Contact_from_str1(self):
         '''Test Contact from_str'''
-        o = hf.Contact(sipmsg=TestSipMsg())
+        o = hf.Contact()
         ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600'
         key = 'sip:watson@worcester.bell-telephone.com'
         o.from_string(ts1)
@@ -145,7 +143,7 @@ class TestHeaderField(unittest.TestCase):
 
     def test_Contact_from_str2(self):
         '''Test Contact from_str'''
-        o = hf.Contact(sipmsg=TestSipMsg())
+        o = hf.Contact()
         ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600,"Mr. Watson" <mailto:watson@bell-telephone.com>;q=0.1'
         key1 = 'sip:watson@worcester.bell-telephone.com'
         key2 = 'mailto:watson@bell-telephone.com'
@@ -157,7 +155,7 @@ class TestHeaderField(unittest.TestCase):
 
     def test_Contact_from_str3(self):
         '''Test Contact from_str'''
-        o = hf.Contact(sipmsg=TestSipMsg())
+        o = hf.Contact()
         ts1 = 'sip:hownow@browncow.com'
         key = ts1
         o.from_string(ts1)
@@ -166,7 +164,7 @@ class TestHeaderField(unittest.TestCase):
 
     def test_Contact_to_str1(self):
         '''Test Contact __str__'''
-        o = hf.Contact(sipmsg=TestSipMsg())
+        o = hf.Contact()
         ts1 = 'sip:hownow@browncow.com'
         o.from_string(ts1)
         s_val = str(o)
@@ -174,7 +172,7 @@ class TestHeaderField(unittest.TestCase):
 
     def test_Contact_to_str2(self):
         '''Test Contact __str__'''
-        o = hf.Contact(sipmsg=TestSipMsg())
+        o = hf.Contact()
         ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600'
         o.from_string(ts1)
         s_val = str(o)
@@ -182,7 +180,7 @@ class TestHeaderField(unittest.TestCase):
 
     def test_Contact_to_str3(self):
         '''Test Contact __str__'''
-        o = hf.Contact(sipmsg=TestSipMsg())
+        o = hf.Contact()
         ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600,"Mr. Watson" <mailto:watson@bell-telephone.com>;q=0.1'
         o.from_string(ts1)
         s_val = str(o)
@@ -384,4 +382,3 @@ class TestHeaderField(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

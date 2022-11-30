@@ -13,6 +13,7 @@ import random
 import re
 import string
 import sys
+import uuid
 
 # Absolutely mandatory fields, Section 8.1.1, ordered by recommendation.
 MANDATORY = ('Via', 'Max_Forwards', 'From', 'To', 'CSeq', 'Call_ID')
@@ -62,12 +63,21 @@ def msg2fields(sipmsg:str) -> dict:
     # Use takewhile to split the message until an empty line
     # between fields and body
     line_iter = itertools.takewhile(lambda x : len(x), sipmsg.splitlines())
-    lines = [line for line in line_iter]
+    lines = list(line_iter)
 
     # Convert list to dictionary, cleaning up keys and values
     return {
         hf.split(' ', 1)[0].rstrip(': '): hf.split(' ', 1)[1].strip()
         for hf in lines}
+
+def sdp_fields(sdp_body:str, field:str) -> list:
+    '''Retrieve a list of SDP fields from a message.
+
+    :param sdp_body: SIP SDP message.
+    :param field: Field to match.
+    :returns list: List of matching fields. May be empty.'''
+    fields = [f for f in sdp_body.splitlines() if f.startswith(field)]
+    return fields
 
 def by_name(name):
     '''Return a field instance by its name from a list of fields.'''
@@ -89,7 +99,7 @@ def factory_valid_fields(sip_msg):
     validfields = []
     for field in allfields:
         if field[1].isvalid(sip_msg.msg_type, sip_msg.method):
-            validfields.append(field[1](sipmsg=sip_msg))
+            validfields.append(field[1]())
     return validfields
 
 def factory_mandatory_fields(sip_msg):
@@ -108,7 +118,7 @@ def factory_mandatory_fields(sip_msg):
     mandatoryfields = []
     for field in allfields:
         if field[1].ismandatory(sip_msg.msg_type, sip_msg.method):
-            mandatoryfields.append(field[1](sipmsg=sip_msg))
+            mandatoryfields.append(field[1]())
     return mandatoryfields
 
 def factory_field_by_name(field_name):
@@ -135,16 +145,16 @@ class HeaderField():
     """Base class for a SIP message header field."""
     # pylint: disable=too-many-public-methods,invalid-name
 
-    def __init__(self, value=None, sipmsg=None):
+    def __init__(self, value=None):
         """Initialize a new instance of HeaderField. """
         self.value = value
-        self.sipmsg = sipmsg
         self.use_compact = False
         self.order = 50
         self._shortname = ''
         self._longname = ''
 
     def __str__(self):
+        # pylint: disable=C0209
         return "{}: {}".format(
             self._shortname if self.use_compact else self._longname,
             self.value)
@@ -168,7 +178,7 @@ class HeaderField():
         :param new_value: A new value for the field.
         :param old_value: A value from the previous set of headers, optional.
         :returns: None if field is not valid.
-       """
+        """
         for hf_action in where_set:
             valid_methods = hf_action[1].split(',') if hf_action[1] else None
             if isinstance(hf_action[0], tuple) and \
@@ -221,6 +231,7 @@ class Accept(HeaderField):
     # Accept                  R            -   o   -   o   m*  o   o   o   o
     # Accept                 2xx           -   -   -   o   m*  o   -   -   -
     # Accept                 415           -   c   -   c   c   c   c   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
@@ -232,8 +243,8 @@ class Accept(HeaderField):
         ('R', "OPTION", _R),
         ((200, 299), "OPTION", _2xx))
 
-    def __init__(self, value='application/sdp', sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value='application/sdp'):
+        super().__init__(value)
         self._shortname = "Accept"
         self._longname = "Accept"
 
@@ -255,6 +266,7 @@ class Accept_Encoding(HeaderField):
     # Accept-Encoding         R            -   o   -   o   o   o   o   o   o
     # Accept-Encoding        2xx           -   -   -   o   m*  o   -   -   -
     # Accept-Encoding        415           -   c   -   c   c   c   c   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
@@ -266,8 +278,8 @@ class Accept_Encoding(HeaderField):
         ((200, 299), "OPTION", _2xx),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Accept-Encoding"
         self._longname = "Accept-Encoding"
 
@@ -289,6 +301,7 @@ class Accept_Language(HeaderField):
     # Accept-Language         R            -   o   -   o   o   o   o   o   o
     # Accept-Language        2xx           -   -   -   o   m*  o   -   -   -
     # Accept-Language        415           -   c   -   c   c   c   c   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
@@ -300,8 +313,8 @@ class Accept_Language(HeaderField):
         ((200, 299), "OPTION", _2xx),
         (None, None, None))
 
-    def __init__(self, value='en-us', sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value='en-us'):
+        super().__init__(value)
         self._shortname = "Accept-Language"
         self._longname = "Accept-Language"
 
@@ -323,14 +336,15 @@ class Alert_Info(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Alert-Info              R      ar    -   -   -   o   -   -   -   -   -
     # Alert-Info             180     ar    -   -   -   o   -   -   -   -   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _180 = lambda nv, ov: nv
     where = (
         ('R', "INVITE", _R),
         (180, "INVITE", _180))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Alert-Info"
         self._longname = "Alert-Info"
 
@@ -352,6 +366,7 @@ class Allow(HeaderField):
     # Allow                  2xx           -   o   -   m*  m*  o   o   o   o
     # Allow                   r            -   o   -   o   o   o   o   o   o
     # Allow                  405           -   m   -   m   m   m   m   m   m
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _r = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
@@ -365,8 +380,8 @@ class Allow(HeaderField):
         ((200, 299), "INVITE,OPTION", _2xx),
         (405, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _405))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Allow"
         self._longname = "Allow"
 
@@ -386,13 +401,14 @@ class Authentication_Info(HeaderField):
     """Provides mutual authentication with HTTP Digest. Sec 20.6"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Authentication-Info    2xx           -   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _2xx = lambda nv, ov: nv
     where = (
         ((200, 299), "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Authentication-Info"
         self._longname = "Authentication-Info"
 
@@ -411,13 +427,14 @@ class Authorization(HeaderField):
     """Contains authentication credentials of a UA. Sec 20.7"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Authorization           R            o   o   o   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Authorization"
         self._longname = "Authorization"
 
@@ -437,14 +454,15 @@ class Call_ID(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Call-ID                 c       r    m   m   m   m   m   m   m   m   m
     # TODO Copied from request to response
+    # pylint: disable=C3001
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 'i'
         self._longname = 'Call-ID'
         self.order = 6
-        self.value = sipmsg.call_id if sipmsg is not None else None
+        self.value = value if value is not None else str(uuid.uuid4())
 
     @staticmethod
     def isvalid(msgtype, method):
@@ -460,13 +478,14 @@ class Call_Info(HeaderField):
     """Provides additional information about the caller or callee. Sec 20.9"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Call-Info                      ar    -   -   -   o   o   o   -   -   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "INVITE,OPTION,REGISTER", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Call-Info"
         self._longname = "Call-Info"
 
@@ -489,6 +508,7 @@ class Contact(HeaderField):
     # Contact                2xx           -   -   -   m   o   o   -   m   o
     # Contact                3xx      d    -   o   -   o   o   o   o   m   m
     # Contact                485           -   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _1xx = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
@@ -505,8 +525,8 @@ class Contact(HeaderField):
         ((200, 299), "INVITE,SUBSCRIBE", _2xx),
         ((300, 399), "SUBSCRIBE,NOTIFY", _2xx))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 'm'
         self._longname = 'Contact'
         self.contact_params = {} # key is addr-spec, data is tuple
@@ -529,8 +549,9 @@ class Contact(HeaderField):
             for c_param in param_values[1:]:
                 p_key, p_value = c_param.split('=')
                 self.contact_params[addr_spec][p_key] = p_value
-        
+
     def __str__(self):
+        # pylint: disable=C0209
         param_str = ''
         for cp_key in self.contact_params.keys():
             param = self.contact_params[cp_key]
@@ -544,7 +565,7 @@ class Contact(HeaderField):
                 if pk == 'display-name':
                     continue
                 param_str += ';{}={}'.format(pk, param[pk])
-        
+
         return "{}: {}".format(
             self._shortname if self.use_compact else self._longname,
             param_str)
@@ -565,13 +586,14 @@ class Content_Disposition(HeaderField):
     """Describes how the message body should be interpreted. Sec 20.11"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Content-Disposition                  o   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Content-Disposition"
         self._longname = "Content-Disposition"
 
@@ -590,13 +612,14 @@ class Content_Encoding(HeaderField):
     """Modifier to 'media-type'. Sec 20.12"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Content-Encoding                     o   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 'e'
         self._longname = 'Content-Encoding'
 
@@ -615,13 +638,14 @@ class Content_Language(HeaderField):
     """See RFC 2616, Sec 14.12. Sec 20.13"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Content-Language                     o   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value='en-us', sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value='en-us'):
+        super().__init__(value)
         self._shortname = "Content-Language"
         self._longname = "Content-Language"
 
@@ -644,8 +668,8 @@ class Content_Length(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Content-Length                 ar    t   t   t   t   t   t   t   t   t
 
-    def __init__(self, value=0, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=0):
+        super().__init__(value)
         self._shortname = 'l'
         self._longname = "Content-Length"
         self.order = 99
@@ -668,6 +692,7 @@ class Content_Type(HeaderField):
     # Content-Type                         *   *   -   *   *   *   *   *   *
     # * = Required if message body is not empty
     # TODO message body
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
@@ -676,8 +701,8 @@ class Content_Type(HeaderField):
         ('Rr', "ACK,BYE,INVITE,OPTION", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 'c'
         self._longname = 'Content-Type'
 
@@ -691,39 +716,35 @@ class Content_Type(HeaderField):
     def ismandatory(msgtype, method):
         """Determine whether field is mandatory for the SIP message type."""
         return False
-        #return Content_Type.value_for_type(
-        #    Content_Type.mandatory, msgtype, method, True) is not None
 
 class CSeq(HeaderField):
     """Contains a sequence number and the request method. Sec 20.16"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # CSeq                    c       r    m   m   m   m   m   m   m   m   m
     # TODO Copied from request to response
+    # pylint: disable=C3001
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, value=0, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=1, method=None):
+        super().__init__(value)
         self._shortname = "CSeq"
         self._longname = "CSeq"
         self.order = 5
-        self.sipmsg = sipmsg
-        self.method = sipmsg.method if sipmsg is not None else None
+        self.method = method
 
     def __str__(self):
+        # pylint: disable=C0209
+        assert self.value is not None
         assert self.method is not None
-        self.value = self.sipmsg.cseq if self.sipmsg is not None else self.value
         return "{}: {} {}".format(
             self._shortname if self.use_compact else self._longname,
             self.value,
             self.method)
-            #self.value if self.sipmsg is None else self.sipmsg.cseq,
 
     def from_string(self, hdr_value):
         values = hdr_value.split(' ')
-        self.value = values[0]
+        self.value = int(values[0])
         self.method = values[1]
-        if self.sipmsg is not None:
-            self.sipmsg.cseq = values[0]
 
     @staticmethod
     def isvalid(msgtype, method):
@@ -740,8 +761,8 @@ class Date(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Date                            a    o   o   o   o   o   o   o   o   o
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Date"
         self._longname = "Date"
 
@@ -759,13 +780,14 @@ class Error_Info(HeaderField):
     """Provides a pointer to addition error information. Sec 20.18"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Error-Info           300-699    a    -   o   o   o   o   o   o   o   o
+    # pylint: disable=C3001
     _300 = lambda nv, ov: nv
     where = (
         ((300, 699), "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _300),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Error-Info"
         self._longname = "Error-Info"
 
@@ -785,6 +807,7 @@ class Expires(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Expires                              -   -   -   o   -   o   -   o   -
     # Expires                2xx           -   -   -   o   -   o   -   m   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "INVITE,REGISTER", _R),
@@ -793,8 +816,8 @@ class Expires(HeaderField):
         ((200, 299), "INVITE,REGISTER,SUBSCRIBE", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Expires"
         self._longname = "Expires"
 
@@ -815,10 +838,11 @@ class From(HeaderField):
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # From                    c       r    m   m   m   m   m   m   m   m   m
     # TODO Copied from request to response
+    # pylint: disable=C3001
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 'f'
         self._longname = 'From'
         self.order = 3
@@ -828,6 +852,7 @@ class From(HeaderField):
             self.tag = gen_tag()
 
     def __str__(self):
+        # pylint: disable=C0209
         assert self.tag is not None
         return "{}: {}".format(
             self._shortname if self.use_compact else self._longname,
@@ -835,6 +860,7 @@ class From(HeaderField):
 
     def from_string(self, hdr_value):
         '''Parse From: ___;tag=___ or From: ___'''
+        # TODO: improve parsing
         values = hdr_value.split(';')
         self.value = values[0]
         if len(values) > 1:
@@ -854,13 +880,14 @@ class In_Reply_To(HeaderField):
     """Enumerates the Call-IDs referenced or returned. Sec 20.11"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # In-Reply-To             R            -   -   -   o   -   -   -   -   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "INVITE", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "In-Reply-To"
         self._longname = "In-Reply-To"
 
@@ -879,6 +906,7 @@ class Max_Forwards(HeaderField):
     """Maximum number of times message should be forwarded. Sec 20.22"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Max-Forwards            R      amr   m   m   m   m   m   m   m   m   m
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
@@ -887,8 +915,8 @@ class Max_Forwards(HeaderField):
         ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=70, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=70):
+        super().__init__(value)
         self._shortname = "Max-Forwards"
         self._longname = "Max-Forwards"
         self.order = 2
@@ -909,13 +937,14 @@ class MIME_Version(HeaderField):
     """See RFC 2616, Sec 19.4.1. Sec 20.24"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # MIME-Version                         o   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "MIME-Version"
         self._longname = "MIME-Version"
 
@@ -934,6 +963,7 @@ class Min_Expires(HeaderField):
     """Minimum refresh interval for soft-state elements. Sec 20.23"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Min-Expires            423           -   -   -   -   -   m   -
+    # pylint: disable=C3001
     _423 = lambda nv, ov: nv
     where = (
         (423, "REGISTER", _423),
@@ -942,8 +972,8 @@ class Min_Expires(HeaderField):
         (423, "REGISTER", _423),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Min-Expires"
         self._longname = "Min-Expires"
 
@@ -963,13 +993,14 @@ class Organization(HeaderField):
     """Name of organization. Sec 20.25"""
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Organization                   ar    -   -   -   o   o   o   -   o   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "INVITE,OPTION,REGISTER,SUBSCRIBE", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Organization"
         self._longname = "Organization"
 
@@ -988,13 +1019,14 @@ class Priority(HeaderField):
     """Indicates request urgency. Sec 20.26, also see RFC 6878"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Priority                    R          ar    -   -   -   o   -   -   -   o   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "INVITE,SUBSCRIBE", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Priority"
         self._longname = "Priority"
 
@@ -1014,6 +1046,7 @@ class Proxy_Authenticate(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Proxy-Authenticate         407         ar    -   m   -   m   m   m   m   m   m
     # Proxy-Authenticate         401         ar    -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _407 = lambda nv, ov: nv
     _401 = lambda nv, ov: nv
     where = (
@@ -1023,8 +1056,8 @@ class Proxy_Authenticate(HeaderField):
         (407, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _407),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Proxy-Authenticate"
         self._longname = "Proxy-Authenticate"
 
@@ -1044,13 +1077,14 @@ class Proxy_Authorization(HeaderField):
     """Allows client to identify itself to proxy. Sec 20.28"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Proxy-Authorization         R          dr    o   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Proxy-Authorization"
         self._longname = "Proxy-Authorization"
 
@@ -1069,13 +1103,14 @@ class Proxy_Require(HeaderField):
     """Proxy-sensitive features that must be supported. Sec 20.29"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Proxy-Require               R          ar    -   o   -   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Proxy-Require"
         self._longname = "Proxy-Require"
 
@@ -1095,6 +1130,7 @@ class Record_Route(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Record-Route                R          ar    o   o   o   o   o   -   o   o   o
     # Record-Route             2xx,18x       mr    -   o   o   o   o   -   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
@@ -1102,8 +1138,8 @@ class Record_Route(HeaderField):
         ((200, 299), "BYE,CANCEL,INVITE,OPTION,PRACK,SUBSCRIBE,NOTIFY", _2xx),
         ((180, 189), "BYE,CANCEL,INVITE,OPTION,PRACK,SUBSCRIBE,NOTIFY", _2xx))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Record-Route"
         self._longname = "Record-Route"
 
@@ -1122,13 +1158,14 @@ class Reply_To(HeaderField):
     """Logical return URI that may be different from From field. Sec 20.31"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Reply-To                                     -   -   -   o   -   -   -   -   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('Rr', "INVITE", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Reply-To"
         self._longname = "Reply-To"
 
@@ -1147,13 +1184,14 @@ class Require(HeaderField):
     """Used by UAC to specify options that must be supported. Sec 20.32"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Require                                ar    -   c   -   c   c   c   c   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: ov or nv
     where = (
         ('Rr', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Require"
         self._longname = "Require"
 
@@ -1176,6 +1214,7 @@ class Retry_After(HeaderField):
     # Retry-After          404,413,480,486         -   o   o   o   o   o   o   o   o
     #                          500,503             -   o   o   o   o   o   o   o   o
     #                          600,603             -   o   o   o   o   o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         (404, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
@@ -1187,8 +1226,8 @@ class Retry_After(HeaderField):
         (600, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (603, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Retry-After"
         self._longname = "Retry-After"
 
@@ -1207,13 +1246,14 @@ class Route(HeaderField):
     """Force routing through listed set of proxies. Sec 20.34"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Route                       R          adr   c   c   c   c   c   c   c   c   c
+    # pylint: disable=C3001
     _R = lambda nv, ov: ov or nv
     where = (
         ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Route"
         self._longname = "Route"
 
@@ -1232,13 +1272,14 @@ class Server(HeaderField):
     """Information about UAS software. Sec 20.35"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Server                      r                -   o   o   o   o   o   o   o   o
+    # pylint: disable=C3001
     _r = lambda nv, ov: nv
     where = (
         ('r', "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Server"
         self._longname = "Server"
 
@@ -1257,13 +1298,14 @@ class Subject(HeaderField):
     """Summary or nature of the call. Sec 20.36"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Subject                     R                -   -   -   o   -   -   -   -   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "INVITE", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 's'
         self._longname = 'Subject'
 
@@ -1283,6 +1325,7 @@ class Supported(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Supported                   R                -   o   o   m*  o   o   o   o   o
     # Supported                  2xx               -   o   o   m*  m*  o   o   o   o
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
@@ -1292,8 +1335,8 @@ class Supported(HeaderField):
         ('R', "INVITE", _R),
         ((200, 299), "INVITE,OPTION", _2xx))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 'k'
         self._longname = 'Supported'
 
@@ -1314,8 +1357,8 @@ class Timestamp(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Timestamp                                    o   o   o   o   o   o   o   o   o
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Timestamp"
         self._longname = "Timestamp"
 
@@ -1338,10 +1381,11 @@ class To(HeaderField):
     # "A request outside of a dialog MUST NOT contain a To tag; the tag in
     # the To field of a request identifies the peer of the dialog.  Since
     # no dialog is established, no tag is present."
+    # pylint: disable=C3001
     _c = lambda nv, ov: ov or nv
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = 't'
         self._longname = 'To'
         self.order = 4
@@ -1349,6 +1393,7 @@ class To(HeaderField):
                                 # MUST NOT contain tag, 8.1.1.2
 
     def __str__(self):
+        # pylint: disable=C0209
         value = \
             self.value if self.tag is None else "{};tag={}".format(self.value, self.tag)
             #";tag={}".format(self.tag) if self.tag is not None else ""
@@ -1358,6 +1403,7 @@ class To(HeaderField):
 
     def from_string(self, hdr_value):
         '''Parse To: ___;tag=___ or To: ___'''
+        # TODO: improve parsing
         values = hdr_value.split(';')
         self.value = values[0]
         if len(values) > 1:
@@ -1377,6 +1423,7 @@ class Unsupported(HeaderField):
     """Lists the features not supported. Sec 20.40"""
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Unsupported                420               -   m   -   m   m   m   m   o   o
+    # pylint: disable=C3001
     _420 = lambda nv, ov: nv
     where = (
         (420, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _420),
@@ -1385,8 +1432,8 @@ class Unsupported(HeaderField):
         (420, "BYE,INVITE,OPTION,REGISTER,PRACK", _420),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Unsupported"
         self._longname = "Unsupported"
 
@@ -1407,8 +1454,8 @@ class User_Agent(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # User-Agent                                   o   o   o   o   o   o   o   o   o
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "User-Agent"
         self._longname = "User-Agent"
 
@@ -1433,8 +1480,8 @@ class Via(HeaderField):
     # TODO Copied from request to response
     # TODO Equality operator, 20.42
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None, transport='UDP', branch=None):
+        super().__init__(value)
         self._shortname = 'v'
         self._longname = 'Via'
         self.order = 1
@@ -1450,15 +1497,14 @@ class Via(HeaderField):
         self.via_params['branch'] = None
         self.via_params['protocol-name'] = 'SIP'
         self.via_params['protocol-version'] = '2.0'
-        if sipmsg is not None:
-            # 'UDP', 'TCP', 'TLS', 'SCTP'
-            self.via_params['transport'] = sipmsg.transport
-            # Required 3261, opt RFC 2543
-            self.via_params['branch'] = sipmsg.branch
+        self.via_params['transport'] = transport
+        self.via_params['branch'] = branch
+
         if self.via_params['branch'] is None:
             self.via_params['branch'] = gen_new_branch()
 
     def __str__(self):
+        # pylint: disable=C0209
         assert self.via_params['protocol-name'] is not None
         assert self.via_params['protocol-version'] is not None
         assert self.via_params['transport'] is not None
@@ -1520,13 +1566,14 @@ class Warning(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Warning                     r                -   o   o   o   o   o   o   o   o
     # Warning                     R                -   -   -   -   -   -   -   -   o
+    # pylint: disable=C3001
     _r = lambda nv, ov: nv
     where = (
         ('r', "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
         ('R', 'NOTIFY', _r))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Warning"
         self._longname = "Warning"
 
@@ -1546,6 +1593,7 @@ class WWW_Authenticate(HeaderField):
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # WWW-Authenticate           401         ar    -   m   -   m   m   m   m   m   m
     # WWW-Authenticate           407         ar    -   o   -   o   o   o   -   -   -
+    # pylint: disable=C3001
     _401 = lambda nv, ov: nv
     _407 = lambda nv, ov: nv
     where = (
@@ -1555,8 +1603,8 @@ class WWW_Authenticate(HeaderField):
         (401, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _401),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "WWW-Authenticate"
         self._longname = "WWW-Authenticate"
 
@@ -1580,6 +1628,7 @@ class RAck(HeaderField):
     provisional responses. sec 7.2'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # RAck                    R            -   -   -   -   -   -   m   -   -
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', "PRACK", _R),
@@ -1588,14 +1637,13 @@ class RAck(HeaderField):
         ('R', "PRACK", _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None, method=None, rseq=0, cseq=0):
+        super().__init__(value)
         self._shortname = "RAck"
         self._longname = "RAck"
-        self.sipmsg = sipmsg
-        self.method = sipmsg.method if sipmsg is not None else None
-        self.cseq = sipmsg.cseq if sipmsg is not None else None
-        self.rseq = 0 # from RSeq header in provisional response
+        self.method = method
+        self.rseq = rseq # from RSeq header in provisional response
+        self.cseq = cseq # copied from CSeq in response
 
     def __str__(self):
         # It contains two numbers and a method tag.  The first number is
@@ -1603,6 +1651,7 @@ class RAck(HeaderField):
         # is being acknowledged.  The next number, and the method, are
         # copied from the CSeq in the response that is being acknowledged.
         # The method name in the RAck header is case sensitive.
+        # pylint: disable=C0209
         return "{}: {} {} {}".format(
             self._longname, self.rseq, self.cseq, self.method)
 
@@ -1627,20 +1676,21 @@ class RSeq(HeaderField):
     them reliably.'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # RSeq                   1xx           -   -   -   o   -   -   -   -   -
+    # pylint: disable=C3001
     _1xx = lambda nv, ov: nv
     where = (
         ((100, 199), "INVITE", _1xx),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None, method=None):
+        super().__init__(value)
         self._shortname = "RSeq"
         self._longname = "RSeq"
-        self.sipmsg = sipmsg
-        self.method = sipmsg.method if sipmsg is not None else None
+        self.method = method
 
     def __str__(self):
         # It contains a single numeric value from 1 to 2**32 - 1.
+        # pylint: disable=C0209
         return "{}: {}".format(self._longname, self.value)
 
     def from_string(self, hdr_value):
@@ -1667,6 +1717,7 @@ class Allow_Events(HeaderField):
     # Allow-Events            R            o   o   -   o   o   o   o   o   o
     # Allow-Events           2xx           -   o   -   o   o   o   o   o   o
     # Allow-Events           489           -   -   -   -   -   -   -   m   m
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     _489 = lambda nv, ov: nv
@@ -1677,8 +1728,8 @@ class Allow_Events(HeaderField):
         (489, 'SUBSCRIBE,NOTIFY', _489),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "u"
         self._longname = "Allow-Events"
         self.order = 50
@@ -1706,6 +1757,7 @@ class Subscription_State(HeaderField):
 
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Subscription-State      R            -   -   -   -   -   -   -   -   m
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', 'NOTIFY', _R),
@@ -1714,8 +1766,8 @@ class Subscription_State(HeaderField):
         ('R', 'NOTIFY', _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "Subscription-State"
         self._longname = "Subscription-State"
         self.order = 50
@@ -1740,6 +1792,7 @@ class Event(HeaderField):
     '''Used to match NOTIFY and SUBSCRIBE messages, sec 7.2.1'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT
     # Event                   R            -   -   -   -   -   -   -   m   m
+    # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
         ('R', 'SUBSCRIBE,NOTIFY', _R),
@@ -1748,8 +1801,8 @@ class Event(HeaderField):
         ('R', 'SUBSCRIBE,NOTIFY', _R),
         (None, None, None))
 
-    def __init__(self, value=None, sipmsg=None):
-        super().__init__(value, sipmsg)
+    def __init__(self, value=None):
+        super().__init__(value)
         self._shortname = "o"
         self._longname = "Event"
         self.order = 50
