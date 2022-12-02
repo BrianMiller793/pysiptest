@@ -1,9 +1,11 @@
 # pysiptest
 
-## Python SIP test framework
+This project is under active development, and is not yet in its final form.
 
-`pysiptest` is a Behave-driven framework for testing SIP scenarios.  It's
-designed to model a SIP client, behaving as an endpoint device.  The
+## Python SIP Test Framework
+
+`pysiptest` is a Python Behave-driven framework for testing SIP scenarios.
+It is designed to model a SIP client, behaving as an endpoint device.  The
 tests are written to model the behavior of a specific device, allowing
 emulation of devices in complex multi-caller scenarios.
 
@@ -35,6 +37,27 @@ action unavailable to SIPp, such as accessing APIs or databases.
 
 Copyright &copy; 2018-2022 Brian C. Miller<br>
 Open source license GNU General Public License version 3
+
+### Motivation
+
+Creating SIP tests modeling smart phones using `sipp` is not easy, and very
+time consuming.  Registration for a receiving endpoint takes two completely
+diffeent scripts, because `sipp` must first be started as a client to
+register an endpoint port, and then a server to answer incoming calls.  On top
+of this, `sipp` crashes for reasons unknown.
+
+The creation of `pysiptest` allows me to simply specify a call sequence in
+general terms through Behave steps.  Basing the project in Python allows
+me to create a model of how a smartphone actually behaves, without needing
+multiple scripts bandaged together by a shell script to work.
+
+The RTP streams have an acceptable amount of jitter, and can echo a stream,
+or replay a PCAP file.
+
+### TODO
+
+The project is under active development.  Refactoring is under way.  The base
+libraries seem stable for now.
 
 ## RFCs
 
