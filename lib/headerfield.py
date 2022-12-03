@@ -236,12 +236,12 @@ class Accept(HeaderField):
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        ((200, 299), "INVITE,OPTION,REGISTER", _2xx),
-        (415, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _415))
+        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ((200, 299), "INVITE,OPTIONS,REGISTER", _2xx),
+        (415, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _415))
     mandatory = (
-        ('R', "OPTION", _R),
-        ((200, 299), "OPTION", _2xx))
+        ('R', "OPTIONS", _R),
+        ((200, 299), "OPTIONS", _2xx))
 
     def __init__(self, value='application/sdp'):
         super().__init__(value)
@@ -271,11 +271,11 @@ class Accept_Encoding(HeaderField):
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        ((200, 299), "INVITE,OPTION,REGISTER", _2xx),
-        (415, 'BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _415))
+        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ((200, 299), "INVITE,OPTIONS,REGISTER", _2xx),
+        (415, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _415))
     mandatory = (
-        ((200, 299), "OPTION", _2xx),
+        ((200, 299), "OPTIONS", _2xx),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -306,11 +306,11 @@ class Accept_Language(HeaderField):
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        ((200, 299), "INVITE,OPTION,REGISTER", _2xx),
-        (415, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _415))
+        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ((200, 299), "INVITE,OPTIONS,REGISTER", _2xx),
+        (415, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _415))
     mandatory = (
-        ((200, 299), "OPTION", _2xx),
+        ((200, 299), "OPTIONS", _2xx),
         (None, None, None))
 
     def __init__(self, value='en-us'):
@@ -372,13 +372,13 @@ class Allow(HeaderField):
     _2xx = lambda nv, ov: nv
     _405 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        ('r', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
-        ((200, 299), "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx),
-        (405, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _405))
+        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('r', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
+        ((200, 299), "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx),
+        (405, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _405))
     mandatory = (
-        ((200, 299), "INVITE,OPTION", _2xx),
-        (405, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _405))
+        ((200, 299), "INVITE,OPTIONS", _2xx),
+        (405, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _405))
 
     def __init__(self, value=None):
         super().__init__(value)
@@ -404,7 +404,7 @@ class Authentication_Info(HeaderField):
     # pylint: disable=C3001
     _2xx = lambda nv, ov: nv
     where = (
-        ((200, 299), "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx),
+        ((200, 299), "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -430,7 +430,7 @@ class Authorization(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -481,7 +481,7 @@ class Call_Info(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "INVITE,OPTION,REGISTER", _R),
+        ('Rr', "INVITE,OPTIONS,REGISTER", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -515,11 +515,11 @@ class Contact(HeaderField):
     _3xx = lambda nv, ov: nv
     _485 = lambda nv, ov: nv
     where = (
-        ('R', "ACK,INVITE,OPTION,REGISTER,SUBSCRIBE,NOTIFY", _R),
+        ('R', "ACK,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY", _R),
         ((100, 199), "INVITE,SUBSCRIBE,NOTIFY,SUBSCRIBE,NOTIFY", _1xx),
-        ((200, 299), "INVITE,OPTION,REGISTER,SUBSCRIBE,NOTIFY", _2xx),
-        ((300, 399), "BYE,INVITE,OPTION,REGISTER,SUBSCRIBE,NOTIFY", _3xx),
-        (485, "BYE,INVITE,OPTION,REGISTER,SUBSCRIBE,NOTIFY", _485))
+        ((200, 299), "INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY", _2xx),
+        ((300, 399), "BYE,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY", _3xx),
+        (485, "BYE,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY", _485))
     mandatory = (
         ('R', "INVITE,SUBSCRIBE,NOTIFY,SUBSCRIBE,NOTIFY", _R),
         ((200, 299), "INVITE,SUBSCRIBE", _2xx),
@@ -589,7 +589,7 @@ class Content_Disposition(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -615,7 +615,7 @@ class Content_Encoding(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -641,7 +641,7 @@ class Content_Language(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value='en-us'):
@@ -695,10 +695,10 @@ class Content_Type(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
     mandatory = (
-        ('Rr', "ACK,BYE,INVITE,OPTION", _R),
+        ('Rr', "ACK,BYE,INVITE,OPTIONS", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -783,7 +783,7 @@ class Error_Info(HeaderField):
     # pylint: disable=C3001
     _300 = lambda nv, ov: nv
     where = (
-        ((300, 699), "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _300),
+        ((300, 699), "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _300),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -909,10 +909,10 @@ class Max_Forwards(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
     mandatory = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=70):
@@ -940,7 +940,7 @@ class MIME_Version(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTION,REGISTER", _R),
+        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -996,7 +996,7 @@ class Organization(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "INVITE,OPTION,REGISTER,SUBSCRIBE", _R),
+        ('Rr', "INVITE,OPTIONS,REGISTER,SUBSCRIBE", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1050,10 +1050,10 @@ class Proxy_Authenticate(HeaderField):
     _407 = lambda nv, ov: nv
     _401 = lambda nv, ov: nv
     where = (
-        (407, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _407),
-        (401, "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK", _401))
+        (407, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _407),
+        (401, "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK", _401))
     mandatory = (
-        (407, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _407),
+        (407, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _407),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1080,7 +1080,7 @@ class Proxy_Authorization(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('R', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1106,7 +1106,7 @@ class Proxy_Require(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1134,9 +1134,9 @@ class Record_Route(HeaderField):
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTION,PRACK,SUBSCRIBE,NOTIFY", _R),
-        ((200, 299), "BYE,CANCEL,INVITE,OPTION,PRACK,SUBSCRIBE,NOTIFY", _2xx),
-        ((180, 189), "BYE,CANCEL,INVITE,OPTION,PRACK,SUBSCRIBE,NOTIFY", _2xx))
+        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ((200, 299), "BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY", _2xx),
+        ((180, 189), "BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY", _2xx))
 
     def __init__(self, value=None):
         super().__init__(value)
@@ -1187,7 +1187,7 @@ class Require(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: ov or nv
     where = (
-        ('Rr', "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('Rr', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1217,14 +1217,14 @@ class Retry_After(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        (404, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        (413, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        (480, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        (486, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        (500, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        (503, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        (600, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        (603, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R))
+        (404, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        (413, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        (480, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        (486, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        (500, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        (503, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        (600, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        (603, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R))
 
     def __init__(self, value=None):
         super().__init__(value)
@@ -1249,7 +1249,7 @@ class Route(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: ov or nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1275,7 +1275,7 @@ class Server(HeaderField):
     # pylint: disable=C3001
     _r = lambda nv, ov: nv
     where = (
-        ('r', "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
+        ('r', "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1329,11 +1329,11 @@ class Supported(HeaderField):
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
-        ('R', "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
-        ((200, 299), "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx))
+        ('R', "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _R),
+        ((200, 299), "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx))
     mandatory = (
         ('R', "INVITE", _R),
-        ((200, 299), "INVITE,OPTION", _2xx))
+        ((200, 299), "INVITE,OPTIONS", _2xx))
 
     def __init__(self, value=None):
         super().__init__(value)
@@ -1426,10 +1426,10 @@ class Unsupported(HeaderField):
     # pylint: disable=C3001
     _420 = lambda nv, ov: nv
     where = (
-        (420, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _420),
+        (420, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _420),
         (None, None, None))
     mandatory = (
-        (420, "BYE,INVITE,OPTION,REGISTER,PRACK", _420),
+        (420, "BYE,INVITE,OPTIONS,REGISTER,PRACK", _420),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1569,7 +1569,7 @@ class Warning(HeaderField):
     # pylint: disable=C3001
     _r = lambda nv, ov: nv
     where = (
-        ('r', "BYE,CANCEL,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
+        ('r', "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _r),
         ('R', 'NOTIFY', _r))
 
     def __init__(self, value=None):
@@ -1597,10 +1597,10 @@ class WWW_Authenticate(HeaderField):
     _401 = lambda nv, ov: nv
     _407 = lambda nv, ov: nv
     where = (
-        (401, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _401),
-        (407, "BYE,INVITE,OPTION,REGISTER", _407))
+        (401, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _401),
+        (407, "BYE,INVITE,OPTIONS,REGISTER", _407))
     mandatory = (
-        (401, "BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _401),
+        (401, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _401),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1722,8 +1722,8 @@ class Allow_Events(HeaderField):
     _2xx = lambda nv, ov: nv
     _489 = lambda nv, ov: nv
     where = (
-        ('R', 'ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _R),
-        ((200, 299), 'ACK,BYE,INVITE,OPTION,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _2xx))
+        ('R', 'ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _R),
+        ((200, 299), 'ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _2xx))
     mandatory = (
         (489, 'SUBSCRIBE,NOTIFY', _489),
         (None, None, None))
