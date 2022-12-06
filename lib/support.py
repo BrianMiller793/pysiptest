@@ -12,7 +12,6 @@ sys.path.append(os.getenv('PYSIP_LIB_PATH'))
 from digestauth import SipDigestAuth
 import headerfield as hf
 import sipmsg
-from sipphone import sip_sdp
 
 def digest_auth(challenge:str, request_method:str, userinfo:dict, uri:str=None):
     '''Create response to challenge WWW-Authenticate or Proxy-Authenticate.
@@ -29,6 +28,35 @@ def digest_auth(challenge:str, request_method:str, userinfo:dict, uri:str=None):
     sda.parse_challenge(challenge)
     return sda.get_auth_digest(request_method, uri,
         userinfo['extension'], userinfo['password'])
+
+def sip_sdp(owner, sockname=None, network='IN IP4') -> str:
+    '''Create SDP info
+
+    :param owner: Domain, extension, user name, or manufacturer
+    :param sockname: Tuple returned by getsockname()
+    :return str:'''
+
+    assert sockname is not None
+    assert isinstance(sockname, tuple)
+    logging.debug('sip_sdp:sockname=%s', sockname)
+    ipaddr = sockname[0]
+    audio_port = sockname[1]
+    random.seed()
+    session_id = random.randint(32768, 65535)
+    version = random.randint(32768, 65535)
+
+    return f'''v=0
+o={owner} {session_id} {version} {network} {ipaddr}
+s=A conversation
+c=IN IP4 {ipaddr}
+t=0 0
+m=audio {audio_port} RTP/AVP 0 9 101
+a=rtpmap:0 PCMU/8000
+a=rtpmap:9 G722/8000
+a=rtpmap:101 telephone-event/8000
+a=fmtp:101 0-15
+a=sendrecv
+'''.replace('\n', '\r\n')
 
 def sip_register(context, userinfo, expires=60) -> sipmsg.SipMessage :
     '''Provide default values for REGISTER request.'''
@@ -74,7 +102,7 @@ def sip_invite(context, caller_info, receiver_info, rtp_socket, request_uri:str=
     invite.sort()
     return invite
 
-def sip_ack(sdp_msg:str, userinfo, addr) -> sipmsg.SipMessage:
+def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
     '''Create ACK message'''
     ack = sipmsg.Ack(request_uri=userinfo['sipuri'])
 
@@ -85,7 +113,7 @@ def sip_ack(sdp_msg:str, userinfo, addr) -> sipmsg.SipMessage:
     ack.sort()
     return ack
 
-def sip_bye(sdp_msg:str, userinfo:dict, addr, contact:str=None) -> sipmsg.SipMessage:
+def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None) -> sipmsg.SipMessage:
     '''Create BYE message
 
     :param sdp_msg: SDP message starting the call.
@@ -109,3 +137,21 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr, contact:str=None) -> sipmsg.SipMes
     bye.field('Call_ID').value = sdp_dict['Call-ID']
     bye.sort()
     return bye
+
+def sip_options(userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
+    '''Create OPTIONS request message for keep-alive, outside of dialog.
+
+    :param userinfo: User information from test environment.
+    :param addr: Socket address.
+    '''
+    addr_contact = f'<sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}>'
+    options = sipmsg.Options(request_uri=addr_contact, transport='UDP')
+    options.init_mandatory()
+    options.field('Via').via_params['transport'] = 'UDP'
+    options.field('Via').via_params['address'] = f'{addr[0]}:{addr[1]}'
+    options.field('CSeq').method = options.method
+    options.field('From').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
+    options.field('To').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
+    options.hdr_fields.append(hf.Contact(value=addr_contact))
+    options.sort()
+    return options
