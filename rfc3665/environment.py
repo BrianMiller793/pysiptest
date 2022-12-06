@@ -5,7 +5,11 @@
 import logging
 from behave import fixture, use_fixture
 from behave.api.async_step import use_or_create_async_context
-from steps.sipphone import AutoAnswer, AutoReply
+
+import os
+import sys
+sys.path.append(os.getenv('PYSIP_LIB_PATH'))
+from sipphone import AutoAnswer, AutoReply
 
 TEST_HOST = '192.168.0.153'
 password_ucm = 'hownowbrowncow123'

@@ -1,13 +1,11 @@
 # vi: ai ts=4 sw=4 et
+# pylint: disable=E0401,C0413,C0116,E0102
 '''
 Functions to support steps Feature: Registration, RFC 3665, Section 2
 '''
 
 import os
-import sys
-
-# pylint: disable=E0401,C0413,C0116,E0102
-sys.path.append(os.getenv('PYSIP_LIB_PATH'))
+import random
 
 from digestauth import SipDigestAuth
 import headerfield as hf
@@ -38,7 +36,6 @@ def sip_sdp(owner, sockname=None, network='IN IP4') -> str:
 
     assert sockname is not None
     assert isinstance(sockname, tuple)
-    logging.debug('sip_sdp:sockname=%s', sockname)
     ipaddr = sockname[0]
     audio_port = sockname[1]
     random.seed()
@@ -78,7 +75,10 @@ def sip_register(context, userinfo, expires=60) -> sipmsg.SipMessage :
     register.sort()
     return register
 
-def sip_invite(context, caller_info, receiver_info, rtp_socket, request_uri:str=None) -> sipmsg.SipMessage :
+def sip_invite(context,
+    caller_info:hash, receiver_info:hash,
+    rtp_socket:tuple,
+    request_uri:str=None) -> sipmsg.SipMessage :
     '''Create INVITE for call'''
     invite = sipmsg.Invite()
     invite.request_uri = request_uri if request_uri is not None else \
