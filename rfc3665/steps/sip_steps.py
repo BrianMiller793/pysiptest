@@ -7,7 +7,6 @@ from asyncio import sleep
 import copy
 import logging
 import os
-import socket
 import sys
 from behave import given, when, then # pylint: disable=E0611
 from behave.api.async_step import \
@@ -52,6 +51,7 @@ async def step(context, user_name, codes): # pylint: disable=W0613
         context.pending_msg = None
 
     sip_msg = await context.sip_xport[user_name][1].rcv_queue.get()
+
     # pylint: disable=C0209
     assert_that(sipmsg.Response.get_code(sip_msg))\
         .described_as('%s response %s'
@@ -228,6 +228,7 @@ async def step(context, user_name):
     # Wait 200 OK
     raw_msg = await context.sip_xport[user_name][1].rcv_queue.get()
     assert_that(sipmsg.Response.get_code(raw_msg)).described_as('response').is_equal_to('200')
+
     sipsdp_fields = hf.msg2fields(raw_msg)
     assert_that(sipsdp_fields['Content-Type'])\
         .described_as('SIP field Content-Type').is_equal_to('application/sdp')
@@ -275,6 +276,7 @@ async def step(context, user_name):
     invite_msg = context.sip_xport[user_name][1].get_prev_rcvd(method='INVITE')
     contact = None
     if invite_msg is not None:
+        logging.info('ends the call: INVITE found')
         contact = hf.msg2fields(invite_msg)['Contact'].trim('<>')
     logging.debug('ends the call: sdp_msg=%s', str(sdp_msg))
     bye_msg = sip_bye(sdp_msg, context.test_users[user_name], addr, contact=contact)

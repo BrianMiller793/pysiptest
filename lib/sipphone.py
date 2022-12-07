@@ -19,10 +19,10 @@ class SipPhoneUdpClient:
     '''
     Factory transport class to support SIP protocol.
     '''
-    def __init__(self, on_con_lost:asyncio.Future):
+    def __init__(self, **kwargs):
         '''Initialize the echo client'''
-        logging.info('__init__')
-        self.on_con_lost = on_con_lost
+        self.on_con_lost = kwargs['on_con_lost'] \
+            if 'on_con_lost' in kwargs else None
         self.transport = None
         self.recvd_pkts = []                # all received packets (string)
         self.sent_msgs = []                 # all sent SIP messages
@@ -58,15 +58,16 @@ class SipPhoneUdpClient:
     def connection_lost(self, exc):             # pylint: disable=W0613
         '''Base protcol: Called when a connection is lost or closed.'''
         logging.info('SipPhoneUdpClient:connection_lost')
-        self.on_con_lost.set_result(True)
+        if self.on_con_lost is not None:
+            self.on_con_lost.set_result(True)
 
     def datagram_received(self, data, addr):    # pylint: disable=W0613
         '''Datagram protcol: Called when a datagram is received.'''
         logging.info('SipPhoneUdpClient:datagram_received')
         sip_msg = data.decode()
         logging.debug('SipPhoneUdpClient:datagram_received: sip_msg=%s', sip_msg)
-        self.recvd_pkts.append(sip_msg)
-        self.rcv_queue.put_nowait(sip_msg)
+        self.recvd_pkts.append(copy.copy(sip_msg))
+        self.rcv_queue.put_nowait(copy.copy(sip_msg))
 
     def sendto(self, sip_msg: sipmsg.SipMessage):
         '''Send SIP message to UAS.'''
@@ -79,25 +80,62 @@ class SipPhoneUdpClient:
         '''Datagram protcol: Called when an error is received.'''
         logging.info('SipPhoneUdpClient:error_received: %s', str(exc))
 
-class AutoReply(SipPhoneUdpClient):
+class KeepAlive(SipPhoneUdpClient):
+    '''Provide OPTIONS keep-alive for an auto-answer endpoint.'''
+    def __init__(self, **kwargs):
+        '''Initialization
+
+        :param on_con_lost:
+        :param user_info:
+        :param loop: Async IO loop
+        :param rtp_sockname: RTP address tuple from getsockname()
+        :param call_future:
+        '''
+        super().__init__(**kwargs)
+        assert 'loop' in kwargs
+        self.loop = kwargs['loop']
+        assert 'user_info' in kwargs
+        self.user_info = kwargs['user_info']
+        self.options_msg = None
+        self.fire_at = None
+        self.branch = None
+
+    def connection_made(self, transport):
+        super().connection_made(transport)
+        addr = transport.get_extra_info('socket').getsockname()
+
+        # Create OPTIONS message, and save branch
+        self.options_msg = support.sip_options(self.user_info, addr)
+        self.branch = self.options_msg.field('Via').via_params['branch']
+        self.fire_at = self.loop.time() + 10
+        self.loop.call_at(self.fire_at, self.callback_event)
+
+    def datagram_received(self, data, addr):    # pylint: disable=W0613
+        '''Datagram Protocol: intercept OK from UAS.'''
+        msg_dict = hf.msg2fields(data.decode())
+        if self.branch not in msg_dict['Via']:
+            logging.debug('KeepAlive:datagram_received')
+            super().datagram_received(data, addr)
+
+    def callback_event(self):
+        '''This is event is fired to send the OPTIONS packet.'''
+        self.sendto(self.options_msg)
+        self.options_msg.field('CSeq').value += 1
+        self.fire_at += 10
+        self.loop.call_at(self.fire_at, self.callback_event)
+
+class AutoReply(KeepAlive):
     '''Automatically reply for INFO, NOTIFY, OPTIONS and UPDATE.
     '''
-    def __init__(self, on_con_lost, user_info:dict=None,
-        rtp_sockname=None, call_future=None):
-        super().__init__(on_con_lost)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.auto_reply = ['INFO', 'NOTIFY', 'OPTIONS', 'UPDATE']
-        self.user_info = user_info
-        self.rtp_sockname = rtp_sockname
-        self.in_a_call = False
-        self.call_future = call_future
 
     def datagram_received(self, data, addr):    # pylint: disable=W0613
         '''Datagram protcol: Called when a datagram is received.'''
+        logging.debug('AutoReply:datagram_received')
         sip_msg = data.decode()
-        self.recvd_pkts.append(sip_msg)
         sip_method = sip_msg.split(maxsplit=1)[0]
-        logging.info('AutoReply:datagram_received: %s', sip_method)
-        logging.debug('AutoReply:datagram_received: %s', sip_msg)
         if sip_method in self.auto_reply:
             logging.info('AutoReply:datagram_received: auto reply to %s', sip_method)
             response = sipmsg.Response(status_code=200, reason_phrase='OK')
@@ -105,8 +143,9 @@ class AutoReply(SipPhoneUdpClient):
             response.init_from_msg(sip_msg)
             response.sort()
             self.sendto(response)
-        else:
-            self.rcv_queue.put_nowait(sip_msg)
+            return
+
+        super().datagram_received(data, addr)
 
 class AutoAnswer(AutoReply):
     # State machine is currently implicit between steps and handler.
@@ -119,12 +158,18 @@ class AutoAnswer(AutoReply):
     # send 200 OK
     # wait for ACK
     '''
-    def __init__(self, on_con_lost, user_info:dict=None,
-        rtp_sockname=None, call_future=None):
-        super().__init__(on_con_lost, user_info, rtp_sockname, call_future)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.to_tag = None
 
+        self.rtp_sockname = kwargs['rtp_sockname'] \
+            if 'rtp_sockname' in kwargs else None
+        self.call_future = kwargs['call_future'] \
+            if 'call_future' in kwargs else None
+        self.in_a_call = False
+
     def datagram_received(self, data, addr):    # pylint: disable=W0613
+        logging.debug('AutoAnswer:datagram_received')
         super().datagram_received(data, addr)
         # At this point, the INVITE or ACK packet may be in the queue.
         # If not, put packet back on queue and continue as normal.
@@ -180,44 +225,3 @@ class AutoAnswer(AutoReply):
             if sip_msg.method == 'BYE':
                 self.in_a_call = False
         super().sendto(sip_msg)
-
-class KeepAlive(AutoAnswer):
-    '''Provide OPTIONS keep-alive for an auto-answer endpoint.'''
-    def __init__(self, on_con_lost, user_info:dict,
-        loop:asyncio.unix_events._UnixSelectorEventLoop,
-        rtp_sockname:tuple=None, call_future=None):
-        '''Initialization
-
-        :param on_con_lost:
-        :param user_info:
-        :param loop: Async IO loop
-        :param rtp_sockname: RTP address tuple from getsockname()
-        :param call_future:
-        '''
-        super().__init__(on_con_lost, user_info, rtp_sockname, call_future)
-        self.options_msg = None
-        self.loop = loop
-        self.fire_at = None
-        self.branch = None
-
-    def connection_made(self, transport):
-        super().connection_made(transport)
-        addr = transport.get_extra_info('socket').getsockname()
-
-        # Create OPTIONS message, and save branch
-        self.options_msg = support.sip_options(self.user_info, addr)
-        self.branch = self.options_msg.field('Via').via_params['branch']
-        self.fire_at = self.loop.time() + 10
-
-    def datagram_received(self, data, addr):    # pylint: disable=W0613
-        '''Datagram Protocol: intercept OK from UAS.'''
-        msg_dict = hf.msg2fields(data.decode())
-        if self.branch not in msg_dict['Via']:
-            super().datagram_received(data, addr)
-
-    def callback_event(self):
-        '''This is event is fired to send the OPTIONS packet.'''
-        self.sendto(self.options_msg)
-        self.options_msg.field('CSeq').value += 1
-        self.fire_at += 10
-        self.loop.call_at(self.fire_at, self.callback_event)

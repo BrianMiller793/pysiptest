@@ -12,8 +12,8 @@ sys.path.append(os.getenv('PYSIP_LIB_PATH'))
 from sipphone import AutoAnswer, AutoReply
 
 TEST_HOST = '192.168.0.153'
-password_ucm = 'hownowbrowncow123'
-password_docker = 'hownowbrowncow123'
+PASSWORD_UCM = 'hownowbrowncow123'
+PASSWORD_DOCKER = 'hownowbrowncow123'
 TEST_USERS = {
     # Receiver
     'Alice': {
@@ -21,8 +21,8 @@ TEST_USERS = {
         'extension': '2006',
         'domain': 'teo',
         'sipuri': 'sip:2006@teo',
-        'password': password_docker,
-        'server': 'Biloxi',
+        'password': PASSWORD_DOCKER,
+        'server': 'Docker',
         'transport': AutoAnswer},
     # Caller
     'Bob': {
@@ -30,20 +30,19 @@ TEST_USERS = {
         'extension': '2007',
         'domain': 'teo',
         'sipuri': 'sip:2007@teo',
-        'password': password_docker,
-        'server': 'Biloxi',
+        'password': PASSWORD_DOCKER,
+        'server': 'Docker',
         'transport': AutoReply}}
 TEST_SERVERS = {
-    'Biloxi': ('192.168.0.153', 5060),
+    'Biloxi': ('192.168.0.156', 5060),
     'Docker': ('192.168.0.153', 5060)} # Docker running with --network=host
 
 async def init_transport(
-    context, async_context, on_con_lost, user_name, user_info):
+    context, async_context, user_name, user_info):
     '''Initiate network transport, sets context.sip_xport.
 
     :param context: Behave test context.
     :param async_context: Async context for asyncio operations.
-    :param on_con_lost: Future for signaling loss of connection.
     :param user_name:
     :param user_info:
     '''
@@ -51,7 +50,9 @@ async def init_transport(
         user_name, user_info['server'])
     transport, protocol = \
         await async_context.loop.create_datagram_endpoint(
-            lambda: user_info['transport'](on_con_lost, user_info=user_info),
+            lambda: user_info['transport'](
+                user_info=user_info,
+                loop=async_context.loop),
             remote_addr=TEST_SERVERS[user_info['server']])
 
     if not hasattr(context, 'sip_xport'):
@@ -66,14 +67,12 @@ def udp_transport(context):
     '''
     logging.info('fixture udp_transport')
     async_context = use_or_create_async_context(context, 'udp_transport')
-    on_con_lost = async_context.loop.create_future()
 
     # Create the task for the client
     for user_name in TEST_USERS.keys():
         logging.debug('fixture udp_transport, user_name=%s', user_name)
         task = async_context.loop.create_task(
-            init_transport(
-                context, async_context, on_con_lost,
+            init_transport(context, async_context,
                 user_name, TEST_USERS[user_name]))
         async_context.loop.run_until_complete(task)
     assert hasattr(context, 'sip_xport')

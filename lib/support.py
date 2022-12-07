@@ -144,7 +144,7 @@ def sip_options(userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
     :param userinfo: User information from test environment.
     :param addr: Socket address.
     '''
-    addr_contact = f'<sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}>'
+    addr_contact = f'sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}'
     options = sipmsg.Options(request_uri=addr_contact, transport='UDP')
     options.init_mandatory()
     options.field('Via').via_params['transport'] = 'UDP'
