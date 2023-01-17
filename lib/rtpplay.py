@@ -33,6 +33,7 @@ class RtpPlay:
         self.fire_at = 0
         self.timestamp = 0
         self.dest_addr = None
+        self.local_addr = None
 
         # pylint: disable=R1732
         self.pcap_file = open(self.file_name, mode='rb')
@@ -73,10 +74,15 @@ class RtpPlay:
         self.timestamp = short(time())
         self.loop.call_at(self.fire_at, self.callback_event)
 
+    def end(self):
+        '''End RTP stream.'''
+        # Interface place holder.
+
     def connection_made(self, transport):
         '''Base transport'''
         logging.debug('RtpPlay:connection_made')
         self.transport = transport
+        self.local_addr = transport.get_extra_info('socket').getsockname()
 
     def connection_lost(self, exc):
         '''Base transport'''

@@ -41,7 +41,8 @@ def step(context, user_name):
     if hasattr(context, 'pending_msg') is False or context.pending_msg is None:
         logging.info('sends request REGISTER: creating pending_msg')
         context.pending_msg = sip_register(
-            context, context.test_users[user_name])
+            context.sip_xport[user_name][1].local_addr,
+            context.test_users[user_name])
 
 @then('"{user_name}" receives response "{codes}"')
 @async_run_until_complete(async_context='udp_datagram')
@@ -127,15 +128,14 @@ async def step(context, user_name):
     assert user_name in context.sip_xport.keys()
     # Start RTP client for echo
     async_context = use_or_create_async_context(context, 'udp_transport')
-    context.sip_xport[user_name][1].call_future = \
+    context.sip_xport[user_name][1].wait = \
         async_context.loop.create_future()
-    transport, _ = \
+    _, protocol = \
         await async_context.loop.create_datagram_endpoint(
             lambda: RtpEcho(async_context.loop, on_con_lost=None),
             local_addr=(context.test_host, 0))
 
-    context.sip_xport[user_name][1].rtp_sockname = \
-        transport.get_extra_info('socket').getsockname()
+    context.sip_xport[user_name][1].rtp_endpoint = protocol
 
 @when('"{caller_name}" calls "{receiver_name}"')
 @async_run_until_complete(async_context='udp_datagram')
@@ -156,11 +156,12 @@ async def step(context, caller_name, receiver_name):
         transport.get_extra_info('socket').getsockname()
     context.rtp_play = (transport, protocol)
 
-    context.invite_msg = sip_invite(context,
+    addr = context.sip_xport[caller_name][1].local_addr
+    context.invite_msg = sip_invite(
+        addr,
         context.test_users[caller_name],
         context.test_users[receiver_name],
-        context.rtp_play[0].get_extra_info('socket').getsockname())
-    addr = context.sip_xport[caller_name][0].get_extra_info('socket').getsockname()
+        context.rtp_play[1].local_addr)
     contact_info = context.test_users[caller_name]
     context.invite_msg.field('Contact').from_string(
         f'<sip:{contact_info["extension"]}@{addr[0]}:{addr[1]}>')
@@ -170,7 +171,7 @@ async def step(context, caller_name, receiver_name):
 def step(context, user_name, portnum):
     assert context.invite_msg is not None
     extension = context.test_users[user_name]["extension"]
-    addr = context.sip_xport[user_name][0].get_extra_info('socket').getsockname()
+    addr = context.sip_xport[user_name][1].local_addr
     context.invite_msg.field('Contact').from_string(
         f'<sip:{extension}@{addr[0]}:{portnum}>')
 
@@ -200,7 +201,7 @@ async def step(context, user_name):
     assert_that(sipmsg.Response.get_code(raw_msg)).described_as('response').is_equal_to('407')
     # send ACK
     logging.info('%s makes the call: create ACK', user_name)
-    addr = context.sip_xport[user_name][0].get_extra_info('socket').getsockname()
+    addr = context.sip_xport[user_name][1].local_addr
     auth_ack = sip_ack(raw_msg, context.test_users[user_name], addr)
     logging.info('%s makes the call: ACK: %s', user_name, str(auth_ack))
     context.sip_xport[user_name][1].sendto(auth_ack)
@@ -261,14 +262,14 @@ async def step(context, user_name):
     # send 180 Ringing
     # send 200 OK w/SDP body
     # wait for ACK request
-    await context.sip_xport[user_name][1].call_future
+    await context.sip_xport[user_name][1].wait
     assert_that(context.sip_xport[user_name][1].in_a_call).is_true()
 
 @then('"{user_name}" ends the call')
 @async_run_until_complete(async_context='udp_datagram')
 async def step(context, user_name):
     # Send BYE
-    addr = context.sip_xport[user_name][0].get_extra_info('socket').getsockname()
+    addr = context.sip_xport[user_name][1].local_addr
     # The SDP message will have the appropriate tags for To and From
     sdp_msg = context.sip_xport[user_name][1].get_prev_rcvd(method='200')
     assert sdp_msg is not None

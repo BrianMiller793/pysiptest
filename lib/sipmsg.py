@@ -136,7 +136,7 @@ class Response(Rfc3261):
         self.method = None  # method value from prev_msg
         self.branch = None  # branch value from prev_msg
         if prev_msg is not None:
-            self.method = prev_msg.split(maxsplit=1)[0]
+            self.method = Request.get_method(prev_msg)
             self.init_from_msg(prev_msg)
 
     @staticmethod

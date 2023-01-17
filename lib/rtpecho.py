@@ -19,11 +19,22 @@ class RtpEcho:
         self.error_count = 0
         self.buffer_count = 0
         self.is_buffered = False
+        self.local_addr = None
+        self.dest_addr = None
+
+    def begin(self):
+        '''Begin RTP stream.'''
+        # Interface place holder.
+
+    def end(self):
+        '''End RTP stream.'''
+        # Interface place holder.
 
     def connection_made(self, transport):
         '''Base transport'''
-        self.transport = transport
         logging.debug('RtpEcho:connection_made')
+        self.transport = transport
+        self.local_addr = transport.get_extra_info('socket').getsockname()
 
     def connection_lost(self, exc):
         '''Base transport'''

@@ -20,6 +20,10 @@ def digest_auth(challenge:str, request_method:str, userinfo:dict, uri:str=None):
     :param uri: Destination URI
     :return Authorization: Completed Authorization header
     '''
+    assert isinstance(challenge, str)
+    assert isinstance(request_method, str)
+    assert isinstance(userinfo, dict)
+
     if uri is None:
         uri = f'sip:{userinfo["domain"]}'
     sda = SipDigestAuth() # Create digest authentication
@@ -55,8 +59,13 @@ a=fmtp:101 0-15
 a=sendrecv
 '''.replace('\n', '\r\n')
 
-def sip_register(context, userinfo, expires=60) -> sipmsg.SipMessage :
+def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60) \
+    -> sipmsg.SipMessage:
     '''Provide default values for REGISTER request.'''
+    assert isinstance(sock_addr, tuple)
+    assert isinstance(userinfo, dict)
+    assert isinstance(expires, int)
+
     register = sipmsg.Register()
     register.request_uri = f'sip:{userinfo["domain"]}'
     register.init_mandatory()
@@ -67,19 +76,28 @@ def sip_register(context, userinfo, expires=60) -> sipmsg.SipMessage :
     register.field('To').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     register.field('From').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     register.field('Via').via_params['transport'] = 'UDP'
-    addr = context.sip_xport[userinfo['name']][0]._sock.getsockname() # pylint: disable=W0212
-    register.field('Via').via_params['address'] = f'{addr[0]}:{addr[1]}'
+    register.field('Via').via_params['address'] = \
+        f'{sock_addr[0]}:{sock_addr[1]}'
     register.hdr_fields.append(hf.Contact(
-        value=f'<sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}>'))
+        value=f'<sip:{userinfo["extension"]}@{sock_addr[0]}:{sock_addr[1]}>'))
     register.hdr_fields.append(hf.Expires(value=expires))
     register.sort()
     return register
 
-def sip_invite(context,
-    caller_info:hash, receiver_info:hash,
-    rtp_socket:tuple,
-    request_uri:str=None) -> sipmsg.SipMessage :
-    '''Create INVITE for call'''
+def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
+    rtp_socket:tuple, request_uri:str=None) -> sipmsg.SipMessage:
+    '''Create INVITE for call
+
+    :param sock_addr: Local SIP socket address
+    :param caller_info: Caller information, from context
+    :param receiver_info: Receiver information, from context
+    :param rtp_socket: Local RTP socket address
+    :param request_uri: Receiver SIP URI, optional
+    '''
+    assert isinstance(sock_addr, tuple)
+    assert isinstance(caller_info, dict)
+    assert isinstance(receiver_info, dict)
+    assert isinstance(rtp_socket, tuple)
     invite = sipmsg.Invite()
     invite.request_uri = request_uri if request_uri is not None else \
             f'{receiver_info["sipuri"]}'
@@ -95,17 +113,22 @@ def sip_invite(context,
     invite.field('To').value = \
         f'{receiver_info["name"]} <{receiver_info["sipuri"]}>'
     invite.field('Via').via_params['transport'] = 'UDP'
-    sockname = context.sip_xport[caller_info['name']][0]._sock.getsockname() # pylint: disable=W0212
-    invite.field('Via').via_params['address'] = f'{sockname[0]}:{sockname[1]}'
-    invite.field('Supported').value = 'timer, precondition, path, replaces'
+    invite.field('Via').via_params['address'] = f'{sock_addr[0]}:{sock_addr[1]}'
+    invite.field('Supported').value = ''
     invite.body = sip_sdp(caller_info['name'], rtp_socket)
     invite.sort()
     return invite
 
-def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
+def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None) \
+    -> sipmsg.SipMessage:
     '''Create ACK message'''
-    ack = sipmsg.Ack(request_uri=userinfo['sipuri'])
+    assert isinstance(sdp_msg, str)
+    assert isinstance(userinfo, dict)
+    assert isinstance(addr, tuple)
 
+    if req_uri is None:
+        req_uri = userinfo['sipuri']
+    ack = sipmsg.Ack(request_uri=req_uri)
     ack.init_from_msg(sdp_msg)
     ack.hdr_fields.append(hf.Contact(
         value=f'<sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}>'))
@@ -120,12 +143,16 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None) -> sipmsg.
     :param contact: SIP contact address for message
     :param userinfo: User information from test environment.
     :param addr: Socket address.'''
+    assert isinstance(sdp_msg, str)
+    assert isinstance(userinfo, dict)
+    assert isinstance(addr, tuple)
+
     sdp_dict = hf.msg2fields(sdp_msg)
     if contact is None:
         contact = sdp_dict['Contact'].strip('<>').split(';')[0]
     bye = sipmsg.Bye(request_uri=contact)
     bye.init_mandatory()
-    bye.field('Via').via_params['transport'] = 'UDP'
+    bye.field('Via').via_params['transport'] = 'udp'
     bye.field('Via').via_params['address'] = f'{addr[0]}:{addr[1]}'
     bye.field('From').from_string(sdp_dict['From'])
     bye.field('To').from_string(sdp_dict['To'])
@@ -144,6 +171,9 @@ def sip_options(userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
     :param userinfo: User information from test environment.
     :param addr: Socket address.
     '''
+    assert isinstance(userinfo, dict)
+    assert isinstance(addr, tuple)
+
     addr_contact = f'sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}'
     options = sipmsg.Options(request_uri=addr_contact, transport='UDP')
     options.init_mandatory()
@@ -155,3 +185,33 @@ def sip_options(userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
     options.hdr_fields.append(hf.Contact(value=addr_contact))
     options.sort()
     return options
+
+def sip_refer(from_user:dict, to_user:dict,
+    sockname:tuple, park_ext:str, request_uri:str) -> sipmsg.SipMessage:
+    '''Create REFER request'''
+    assert isinstance(from_user, dict)
+    assert isinstance(to_user, dict)
+    assert isinstance(sockname, tuple)
+    assert isinstance(park_ext, str)
+    assert isinstance(request_uri, str)
+
+    refer = sipmsg.Refer(request_uri=request_uri, transport='UDP')
+    refer.init_mandatory()
+    refer.field('Via').via_params['transport'] = refer.transport
+    refer.field('Via').via_params['address'] = \
+        f'{sockname[0]}:{sockname[1]}'
+    refer.field('From').value = \
+        f'{from_user["name"]} <{from_user["sipuri"]}>'
+    refer.field('To').value = \
+        f'{to_user["name"]} <{to_user["sipuri"]}>'
+    refer.field('Contact').from_string(
+        f'<sip:{from_user["extension"]}@{sockname[0]}:{sockname[1]}>')
+    refer.field('CSeq').method = refer.method
+    refer.field('Refer_To').value = park_ext
+    refer.field('Referred_By').value = \
+        str(refer.field('Contact')).split(maxsplit=1)[-1]
+    refer.hdr_fields.append(hf.Event(value='refer'))
+    refer.hdr_fields.append(hf.User_Agent(
+        value='pysip/123456_DEADBEEFCAFE'))
+    refer.sort()
+    return refer
