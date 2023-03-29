@@ -81,6 +81,8 @@ def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60) \
     register.hdr_fields.append(hf.Contact(
         value=f'<sip:{userinfo["extension"]}@{sock_addr[0]}:{sock_addr[1]}>'))
     register.hdr_fields.append(hf.Expires(value=expires))
+    register.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     register.sort()
     return register
 
@@ -116,6 +118,8 @@ def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
     invite.field('Via').via_params['address'] = f'{sock_addr[0]}:{sock_addr[1]}'
     invite.field('Supported').value = ''
     invite.body = sip_sdp(caller_info['name'], rtp_socket)
+    invite.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     invite.sort()
     return invite
 
@@ -133,6 +137,8 @@ def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None) \
     ack.hdr_fields.append(hf.Contact(
         value=f'<sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}>'))
     ack.field('CSeq').method = 'ACK'
+    ack.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     ack.sort()
     return ack
 
@@ -162,6 +168,8 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None) -> sipmsg.
     bye.field('CSeq').value += 1
     bye.field('CSeq').method = bye.method
     bye.field('Call_ID').value = sdp_dict['Call-ID']
+    bye.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     bye.sort()
     return bye
 
@@ -183,6 +191,8 @@ def sip_options(userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
     options.field('From').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     options.field('To').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     options.hdr_fields.append(hf.Contact(value=addr_contact))
+    options.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     options.sort()
     return options
 
@@ -213,5 +223,54 @@ def sip_refer(from_user:dict, to_user:dict,
     refer.hdr_fields.append(hf.Event(value='refer'))
     refer.hdr_fields.append(hf.User_Agent(
         value='pysip/123456_DEADBEEFCAFE'))
+    refer.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     refer.sort()
     return refer
+
+def sip_subscribe(from_user:dict, to_sipuri:dict, request_uri:str,
+    sockname:tuple, event:str, accept:str, supported:str=None, expires:int=300):
+    '''Create SUBSCRIBE request
+
+    :param from_user: User URI generating request.
+    :param to_sipuri: The endpoint generating events.
+    :param request_uri: May be address of UC, or To: URI address.
+    :param sockname: UDP sockname value
+    :param event: Subscribed event, such as presence, message-summary, etc.
+    :param accept: Accept field
+    :param supported: Supported field
+    :param expires: Expires field'''
+    assert isinstance(from_user, dict)
+    assert isinstance(to_sipuri, str)
+    assert isinstance(sockname, tuple)
+    assert isinstance(event, str)
+    assert isinstance(accept, str)
+    assert isinstance(request_uri, str)
+    if supported is not None:
+        assert isinstance(supported, str)
+    if expires is not None:
+        assert isinstance(expires, int)
+
+    subscribe = sipmsg.Subscribe(request_uri=request_uri, transport='UDP')
+    subscribe.init_mandatory()
+
+    subscribe.field('Via').via_params['transport'] = subscribe.transport
+    subscribe.field('Via').via_params['address'] = \
+        f'{sockname[0]}:{sockname[1]}'
+    subscribe.field('From').value = f'<{from_user["sipuri"]}>'
+    subscribe.field('To').value = f'<{to_sipuri}>'
+    subscribe.field('Contact').from_string(
+        f'<sip:{from_user["extension"]}@{sockname[0]}:{sockname[1]}>')
+    subscribe.field('CSeq').method = subscribe.method
+    subscribe.field('Event').value = event
+    subscribe.hdr_fields.append(hf.Accept(value=accept))
+    if supported is not None:
+        subscribe.hdr_fields.append(hf.Supported(value=supported))
+    subscribe.hdr_fields.append(hf.User_Agent(
+        value='pysip/123456_DEADBEEFCAFE'))
+    subscribe.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    subscribe.hdr_fields.append(hf.Supported(value='eventlist, replaces, callerid'))
+    subscribe.hdr_fields.append(hf.Expires(value=expires))
+    subscribe.sort()
+    return subscribe

@@ -1703,7 +1703,9 @@ class RSeq(HeaderField):
         return False
 
 #####################################################################
-# RFC 3265
+# RFC 3265 -- SIP-Specific Event Notification (obsolete)
+# RFC 6665 -- SIP-Specific Event Notification
+# RFC 3863 -- Presence Information Data Format (PIDF)
 
 class Allow_Events(HeaderField):
     """Allow-Events includes a list of tokens indicating the event packages supported."""

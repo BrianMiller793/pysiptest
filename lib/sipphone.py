@@ -67,7 +67,7 @@ class SipPhoneUdpClient:
         return None
 
     def get_prev_rcvd(self, method:str) -> str:
-        '''Get a copy of a previously received message.
+        '''Get a copy of first matching previously received message.
 
         :param method: Method name or code, starting from last received message.
         :retval str: Matching message, or None.'''
@@ -77,6 +77,14 @@ class SipPhoneUdpClient:
             if method in msg_line:
                 return copy.deepcopy(self.recvd_pkts[i])
         return None
+
+    def get_rcvd(self, method_code:str) -> list:
+        '''Get a shallow copy of all previously received messages for method or code.
+
+        :param method: Method name or code, starting from first received message.
+        :retval list: Matching messages, or empty list.'''
+        return [ m for m in self.recvd_pkts
+            if method_code in m.splitlines()[0].split()[0:2] ]
 
     def connection_made(self, transport):
         '''Base protcol: Called when a connection is made.'''
@@ -235,6 +243,8 @@ class AutoReply(KeepAlive):
         sip_method = sip_msg.split(maxsplit=1)[0]
         if sip_method in self.auto_reply:
             logging.info('AutoReply:datagram_received: auto reply to %s', sip_method)
+            # Append packet for later reference, respond, exit processing
+            self.recvd_pkts.append(copy.copy(sip_msg))
             response = sipmsg.Response(status_code=200, reason_phrase='OK')
             response.method = sip_method
             response.init_from_msg(sip_msg)
@@ -249,12 +259,12 @@ class AutoAnswer(AutoReply):
     '''Answer an incoming call.
        The RTP socket has been allocated, and the client is waiting for
        an INVITE.
+    '''
     # wait for INVITE
     # send 100 Trying
     # send 180 Ringing
     # send 200 OK
     # wait for ACK
-    '''
     def __init__(self, **kwargs):
         '''Initialization
 
@@ -278,7 +288,6 @@ class AutoAnswer(AutoReply):
                 self.dialog['call_id'] = fields['Call-ID']
             if 'contact' not in self.dialog:
                 self.dialog['contact'] = fields['Contact'].strip('<>')
-            #self.state_callback[self.dialog['call_id']] = self.answer_invite
             self.state_callback[fields['Call-ID']] = self.answer_invite
         if method == 'BYE':
             self.state_callback[fields['Call-ID']] = self.bye_dialog

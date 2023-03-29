@@ -22,7 +22,7 @@ TEST_USERS = {
         'domain': 'teo',
         'sipuri': 'sip:2006@teo',
         'password': PASSWORD_UCM,
-        'server': 'Docker',
+        'server': 'Biloxi',
         'transport': AutoAnswer},
     # Caller
     'Bob': {
@@ -31,7 +31,7 @@ TEST_USERS = {
         'domain': 'teo',
         'sipuri': 'sip:2007@teo',
         'password': PASSWORD_UCM,
-        'server': 'Docker',
+        'server': 'Biloxi',
         'transport': AutoAnswer},
     'Charlie': {
         'name': 'Charlie',
@@ -39,11 +39,11 @@ TEST_USERS = {
         'domain': 'teo',
         'sipuri': 'sip:2008@teo',
         'password': PASSWORD_UCM,
-        'server': 'Docker',
+        'server': 'Biloxi',
         'transport': AutoAnswer}}
 TEST_SERVERS = {
     'Biloxi': ('192.168.0.203', 5060),
-    'Docker': ('192.168.0.143', 5060)} # Docker running with --network=host
+    'Docker': ('192.168.0.153', 5060)} # Docker running with --network=host
 
 async def init_transport(
     context, async_context, user_name, user_info):
