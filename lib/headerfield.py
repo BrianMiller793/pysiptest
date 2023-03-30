@@ -63,16 +63,23 @@ def gen_new_branch(length=10):
     return VIA_COOKIE + gen_rand_str(length)
 
 def msg2fields(sipmsg:str) -> dict:
-    """Split SIP message into field-value dictionary."""
+    """Split SIP message into field-value dictionary. Additional
+    data after header fields is in 'Body'."""
     # Use takewhile to split the message until an empty line
     # between fields and body
     line_iter = itertools.takewhile(lambda x : len(x), sipmsg.splitlines())
     lines = list(line_iter)
 
     # Convert list to dictionary, cleaning up keys and values
-    return {
+    fields = {
         hf.split(' ', 1)[0].rstrip(': '): hf.split(' ', 1)[1].strip()
         for hf in lines}
+
+    content_length = int(fields['Content-Length'])
+    if content_length != 0:
+        fields['Body'] = sipmsg[len(sipmsg)-content_length:]
+
+    return fields
 
 def sdp_fields(sdp_body:str, field:str) -> list:
     '''Retrieve a list of SDP fields from a message.

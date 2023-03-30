@@ -11,18 +11,20 @@ Feature: Park Calls
 
     Then "Charlie" subscribes to "Alice"
     Then "Charlie" subscribes to "Bob"
-
     Then pause for 2 seconds
-    And "Bob" waits for a call
+    Then "Charlie" has received "Available" notification for "Alice"
+    Then "Charlie" has received "Available" notification for "Bob"
+
+    Then "Bob" waits for a call
     Then "Alice" calls "Bob"
     Then "Bob" answers the call
     Then pause for 2 seconds
-    Then "Charlie" has received notification for "Alice"
-    Then "Charlie" has received notification for "Bob"
+    Then "Charlie" has received "On The Phone" notification for "Alice"
+    Then "Charlie" has received "On The Phone" notification for "Bob"
     Then "Bob" hangs up
     Then pause for 2 seconds
-    Then "Charlie" has received notification for "Alice"
-    Then "Charlie" has received notification for "Bob"
+    Then "Charlie" has received "Available" notification for "Alice"
+    Then "Charlie" has received "Available" notification for "Bob"
 
     Then "Charlie" unsubscribes from "Alice"
     Then "Charlie" unsubscribes from "Bob"
