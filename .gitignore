@@ -1,2 +1,5 @@
 p3env
 *.pyc
+*.pcap
+*.pcapng
+*.swp

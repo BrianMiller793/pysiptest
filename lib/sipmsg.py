@@ -205,7 +205,12 @@ class Prack(Request):
 #####################################################################
 
 class Rfc3265(Rfc3262):
-    """ RFC 3265, RFC 6665, Event Notification """
+    """ RFC 3265, Event Notification """
+    def __init__(self):
+        super().__init__()
+
+class Rfc6665(Rfc3262):
+    """ RFC 6665, obsoletes 3265, Event Notification """
     def __init__(self):
         super().__init__()
 

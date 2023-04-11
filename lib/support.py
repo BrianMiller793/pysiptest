@@ -228,6 +228,7 @@ def sip_refer(from_user:dict, to_user:dict,
     refer.sort()
     return refer
 
+# pylint: disable=R0913
 def sip_subscribe(from_user:dict, to_sipuri:dict, request_uri:str,
     sockname:tuple, event:str, accept:str, supported:str=None, expires:int=300):
     '''Create SUBSCRIBE request
@@ -263,7 +264,6 @@ def sip_subscribe(from_user:dict, to_sipuri:dict, request_uri:str,
         f'<sip:{from_user["extension"]}@{sockname[0]}:{sockname[1]}>')
     subscribe.field('CSeq').method = subscribe.method
     subscribe.field('Event').value = event
-    subscribe.hdr_fields.append(hf.Accept(value=accept))
     if supported is not None:
         subscribe.hdr_fields.append(hf.Supported(value=supported))
     subscribe.hdr_fields.append(hf.User_Agent(
@@ -274,3 +274,53 @@ def sip_subscribe(from_user:dict, to_sipuri:dict, request_uri:str,
     subscribe.hdr_fields.append(hf.Expires(value=expires))
     subscribe.sort()
     return subscribe
+
+def sip_publish(from_user:dict, request_uri:str, sockname:tuple,
+    event:str, accept:str=None, supported:str=None, expires:int=None):
+    '''Create PUBLISH request, RFC 3903.
+    Need to track SIP-ETag returned in 2xx response.
+    Initial request does not contain SIP-If-Match. Subsequent event updates
+    MUST contain SIP-If-Match from previous response to update event.
+
+    :param from_user: User URI generating request.
+    :param request_uri: May be address of UC, or To: URI address.
+    :param sockname: UDP sockname value
+    :param event: Subscribed event, such as presence, message-summary, etc.
+    :param accept: Accept field
+    :param supported: Supported field
+    :param expires: Expires field'''
+    assert isinstance(from_user, dict)
+    assert isinstance(request_uri, str)
+    assert isinstance(sockname, tuple)
+    assert isinstance(event, str)
+    if accept is not None:
+        assert isinstance(accept, str)
+    if supported is not None:
+        assert isinstance(supported, str)
+    if expires is not None:
+        assert isinstance(expires, int)
+
+    publish = sipmsg.Publish(request_uri=request_uri, transport='UDP')
+    publish.init_mandatory()
+
+    publish.field('Via').via_params['transport'] = publish.transport
+    publish.field('Via').via_params['address'] = \
+        f'{sockname[0]}:{sockname[1]}'
+    publish.field('From').value = f'<{from_user["sipuri"]}>'
+    publish.field('To').value = f'<{from_user["sipuri"]}>'
+    publish.field('CSeq').method = publish.method
+    publish.field('Event').value = event
+    if accept is not None:
+        publish.hdr_fields.append(hf.Accept(value=accept))
+    if supported is not None:
+        publish.hdr_fields.append(hf.Supported(value=supported))
+    publish.hdr_fields.append(hf.User_Agent(
+        value='pysip/123456_DEADBEEFCAFE'))
+    publish.hdr_fields.append(hf.Allow(
+        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    publish.hdr_fields.append(hf.Supported(value='eventlist, replaces, callerid'))
+    if expires is not None:
+        publish.hdr_fields.append(hf.Expires(value=expires))
+    publish.hdr_fields.append(hf.Content_Type(value='application/pidf+xml'))
+    publish.sort()
+    return publish

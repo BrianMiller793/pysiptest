@@ -1,12 +1,19 @@
-'''Provide steps supporting call parking using REFER request method.'''
+'''Provide steps supporting SUBSCRIBE and PUBLISH request methods.'''
 # vim: ts=4 sw=4 et ai
 
+# RFC 6665, SIP-Specific Event Notification
+# RFC 5262, Presence Information Data Format (PIDF) Extension for
+#           Partial Presence
+# RFC 4662, A Session Initiation Protocol (SIP) Event Notification
+#           Extension for Resource Lists
+# RFC 3265, Session Initiation Protocol (SIP)-Specific Event Notification,
+#           obsoleted by 6665
+
 from asyncio import sleep
-import copy
 import logging
 import os
 import sys
-from behave import given, then    # pylint: disable=E0611
+from behave import given, then, step    # pylint: disable=E0611
 from behave.api.async_step import \
     async_run_until_complete, use_or_create_async_context
 from assertpy import assert_that
@@ -19,8 +26,24 @@ from rtpplay import RtpPlay
 import headerfield as hf
 import sipmsg
 import support
+import publish_msg as psm
 
 # pylint: disable=W0613,C0116
+
+async def wait_for_response(protocol, expected_code):
+    '''Wait for a response, and assert its value.'''
+    response = await protocol.rcv_queue.get()
+    while response is not None:
+        code = int(sipmsg.Response.get_code(response))
+        logging.info('wait_for_response: received %i', code)
+        assert_that(code).described_as('response').is_less_than(300)
+        if code >= 200:
+            break
+        response = await protocol.rcv_queue.get()
+
+    assert_that(sipmsg.Response.get_code(response))\
+        .described_as('response').is_equal_to(expected_code)
+    return response
 
 # REGISTER sip:teo SIP/2.0
 # SIP/2.0 401 Unauthorized
@@ -60,7 +83,8 @@ async def step_impl(context, caller, receiver):
     user_protocol.dial(context.test_users[receiver])
     # Wait for call to complete
     await user_protocol.wait
-    assert user_protocol.wait.result() is True
+    assert_that(user_protocol.wait.result())\
+        .described_as('__ calls __').is_true()
     user_protocol.wait = None
 
 @step('"{name}" waits for a call')
@@ -82,7 +106,8 @@ async def step_impl(context, name):
 async def step_impl(context, receiver):
     user_protocol = context.sip_xport[receiver][1]
     await user_protocol.wait
-    assert user_protocol.wait.result() is True
+    assert_that(user_protocol.wait.result())\
+        .described_as('__ answers the call').is_true()
     user_protocol.wait = None
 
 @then('pause for {time} seconds')
@@ -97,7 +122,8 @@ async def step_impl(context, name):
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.hangup()
     await user_protocol.wait
-    assert user_protocol.wait.result() is True
+    assert_that(user_protocol.wait.result())\
+        .described_as('__ hangs up').is_true()
     user_protocol.wait = None
 
 @then('"{name}" starts waiting')
@@ -109,9 +135,11 @@ def step_impl(context, name):
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
-    assert user_protocol.wait is not None
+    assert_that(user_protocol.wait)\
+        .described_as('__ waits for hangup:future').is_not_none()
     await user_protocol.wait
-    assert user_protocol.wait.result() is True
+    assert_that(user_protocol.wait.result())\
+        .described_as('__ waits for hangup').is_true()
     user_protocol.wait = None
 
 @then('"{name}" unregisters')
@@ -123,7 +151,8 @@ async def step_impl(context, name):
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.start_unregistration()
     await user_protocol.wait
-    assert user_protocol.wait.result() is True
+    assert_that(user_protocol.wait.result())\
+        .described_as('__ unregisters').is_true()
     user_protocol.wait = None
 
 @then('"{name}" subscribes to "{user_or_uri}"')
@@ -141,7 +170,7 @@ async def step_impl(context, name, user_or_uri):
         sockname=user_protocol.local_addr, event='presence',
         accept='multipart/related, application/rlmi+xml, application/pidf+xml')
     user_protocol.sendto(presence_sub)
-    wait_for_response(user_protocol, '202')
+    await wait_for_response(user_protocol, '202')
 
 @then('"{name}" unsubscribes from "{user_or_uri}"')
 @async_run_until_complete(async_context='udp_transport')
@@ -160,26 +189,39 @@ async def step_impl(context, name, user_or_uri):
         accept='multipart/related, application/rlmi+xml, application/pidf+xml',
         expires=0)
     user_protocol.sendto(presence_unsub)
-    wait_for_response(user_protocol, '202')
-
-async def wait_for_response(protocol, expected_code):
-    response = await protocol.rcv_queue.get()
-    while response is not None:
-        code = int(sipmsg.Response.get_code(response))
-        logging.info('wait_for_response: received %i', code)
-        assert_that(code).described_as('response').is_less_than(300)
-        if code >= 200:
-            break
-        response = await protocol.rcv_queue.get()
-
-    assert_that(sipmsg.Response.get_code(response)).\
-        described_as('response').is_equal_to(expected_code)
+    await wait_for_response(user_protocol, '202')
 
 @then('"{subscriber}" has received "{state}" notification for "{source}"')
 def step_impl(context, subscriber, state, source):
     user_protocol = context.sip_xport[subscriber][1]
-    notifications = user_protocol.get_rcvd('NOTIFY')
-    assert len(notifications) != 0
+    source_addr = context.test_users[source]['sipuri']
+    notifications = [ m for m in user_protocol.get_rcvd('NOTIFY')
+        if source_addr in m ]
+    assert_that(len(notifications)).described_as('received NOTIFY')\
+        .is_not_zero()
     notifications.reverse()
-    assert state in notifications[0]
-    assert state in notifications[1]
+    assert_that(notifications[0]).described_as('state in NOTIFY')\
+        .contains(state)
+
+@then('"{name}" sets presence to "{state}"')
+@async_run_until_complete(async_context='udp_transport')
+async def step_impl(context, name, state):
+    user_protocol = context.sip_xport[name][1]
+    publish = support.sip_publish(
+        context.test_users[name],
+        context.test_users[name]['sipuri'], #request_uri
+        user_protocol.local_addr, 'presence')
+    publish.field('CSeq').value = user_protocol.cseq_in_dialog
+    publish.body = psm.status(state, context.test_users[name]['sipuri'])
+
+    # First PUBLISH will have no SIP-ETag value for SIP_If_Match
+    if hasattr(context, 'SIP_ETag'):
+        publish.hdr_fields.append(hf.SIP_If_Match(value=context.SIP_ETag))
+        publish.sort()
+    logging.info('__ sets presence to __: publish=%s', str(publish))
+    user_protocol.sendto(publish)
+
+    response = await wait_for_response(user_protocol, '200')
+    rfields = hf.msg2fields(response)
+    assert_that(rfields).described_as('PUBLISH response').contains('SIP-ETag')
+    context.SIP_ETag = rfields['SIP-ETag']
