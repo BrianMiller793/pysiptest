@@ -534,7 +534,7 @@ class Contact(HeaderField):
         if value is not None:
             self.from_string(value)
 
-    def from_string(self, hdr_value):
+    def _parse_value(self, hdr_value):
         # Parse Contact, RFC 3261 p.228
         self.contact_params.clear()
         for contact_param in hdr_value.split(','):
@@ -551,7 +551,7 @@ class Contact(HeaderField):
                 p_key, p_value = c_param.split('=')
                 self.contact_params[addr_spec][p_key] = p_value
 
-    def __str__(self):
+    def _to_string(self):
         # pylint: disable=C0209
         param_str = ''
         for cp_key in self.contact_params.keys():
@@ -566,10 +566,16 @@ class Contact(HeaderField):
                 if pk == 'display-name':
                     continue
                 param_str += ';{}={}'.format(pk, param[pk])
+        self.value = param_str
 
+    def from_string(self, hdr_value):
+        self._parse_value(hdr_value)
+        self.value = self._to_string()
+
+    def __str__(self):
         return "{}: {}".format(
             self._shortname if self.use_compact else self._longname,
-            param_str)
+            self.value)
 
     @staticmethod
     def isvalid(msgtype, method):

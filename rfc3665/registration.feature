@@ -1,6 +1,5 @@
 Feature: Registration, RFC 3665, Section 2
 
-  @wip
   Scenario: 2.1 Successful new Registration
     Given new connection with user "Bob" and server "Docker"
     When "Bob" sends request REGISTER
@@ -10,7 +9,6 @@ Feature: Registration, RFC 3665, Section 2
     Then "Bob" receives response "200"
     Then "Bob" is registered at the server
 
-  @wip
   Scenario: 2.1a Successful new Registration
     Given new connection with user "Alice" and server "Docker"
     When "Alice" sends request REGISTER
@@ -20,7 +18,7 @@ Feature: Registration, RFC 3665, Section 2
     Then "Alice" receives response "200"
     Then "Alice" is registered at the server
 
-  @wip
+  @skip
   Scenario: Calls through UCM
   Given "Alice" waits for a call
   When "Bob" calls "Alice"
@@ -54,7 +52,6 @@ Feature: Registration, RFC 3665, Section 2
     Then "Bob" receives response "200"
     Then "Bob" response contains "Contact" field, value "mailto:bob@biloxi.example.com"
 
-  @wip
   Scenario: 2.4 Cancellation of Registration for BobD
     Given existing connection with user "Bob" and server "Docker"
     When "Bob" sends request REGISTER
@@ -69,7 +66,6 @@ Feature: Registration, RFC 3665, Section 2
     Then "Bob" response does not contain field "Contact"
     Then "Bob" is unregistered
 
-  @wip
   Scenario: 2.4 Cancellation of Registration for AliceD
     Given existing connection with user "Alice" and server "Docker"
     When "Alice" sends request REGISTER

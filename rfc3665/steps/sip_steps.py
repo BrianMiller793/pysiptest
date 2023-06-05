@@ -43,6 +43,7 @@ def step(context, user_name):
         context.pending_msg = sip_register(
             context.sip_xport[user_name][1].local_addr,
             context.test_users[user_name])
+        context.pending_msg.field('Contact').value = context.pending_msg.field('From').value
 
 @then('"{user_name}" receives response "{codes}"')
 @async_run_until_complete(async_context='udp_datagram')
@@ -65,6 +66,7 @@ async def step(context, user_name, codes): # pylint: disable=W0613
 @when('with header field "{field_name}" value "{field_value}"')
 def step(context, field_name, field_value): # pylint: disable=W0613
     assert context.pending_msg is not None
+    field_name = field_name.replace('-', '_')
     field = context.pending_msg.field(field_name)
     if field is None:
         field = hf.by_name(field_name)() # by_name returns class
@@ -250,7 +252,6 @@ async def step(context, user_name):
     ack_msg.hdr_fields.append(proxy_auth)
     ack_msg.sort()
     context.sip_xport[user_name][1].sendto(ack_msg)
-
 
 # pylint: disable=W0613
 @then('"{user_name}" answers the call')
