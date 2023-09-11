@@ -1,0 +1,40 @@
+Presence
+** Teo
+  Phones:
+  Fir
+  Cedar
+  7810
+  Softphone
+  SIP 3rd party
+
+Offline to Online
+Online to Offline
+
+Available to Ringing
+Ringing to On The Phone
+On The Phone to Available
+Ringing to Available
+
+A Registers
+A subscribes to B
+B Registers
+A receives status of B
+B unregisters
+A receives status of B
+A unregisters
+
+A Registers
+A subscribes to B
+B Registers
+C Registers
+A receives status of B
+C calls B
+A receives status of B
+C hangs up
+A receives status of B
+C hangs up
+B unregisters
+A receives status of B
+A unregisters
+
+
