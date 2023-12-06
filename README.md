@@ -35,8 +35,17 @@ The Python step files contain functions implementing set up of the
 test environment and the user actions.  This allows the test to take
 action unavailable to SIPp, such as accessing APIs or databases.
 
-Copyright &copy; 2018-2022 Brian C. Miller<br>
+Copyright &copy; 2018-2023 Brian C. Miller<br>
 Open source license GNU General Public License version 3
+For non-commercial use.
+
+### Installation
+
+The library uses Hatch for library configuration.
+
+    pip install build
+    python -m build
+    pip install dist/pysiptest-0.0.1.tar.gz
 
 ### Motivation
 
