@@ -7,9 +7,9 @@ Functions to support steps Feature: Registration, RFC 3665, Section 2
 import os
 import random
 
-from digestauth import SipDigestAuth
-import headerfield as hf
-import sipmsg
+from pysiptest.digestauth import SipDigestAuth
+import pysiptest.headerfield as hf
+import pysiptest.sipmsg as sipmsg
 
 def digest_auth(challenge:str, request_method:str, userinfo:dict, uri:str=None):
     '''Create response to challenge WWW-Authenticate or Proxy-Authenticate.

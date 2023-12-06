@@ -19,14 +19,13 @@ from behave.api.async_step import \
 from assertpy import assert_that
 
 # pylint: disable=E0401,E0102,C0413
-sys.path.append(os.getenv('PYSIP_LIB_PATH'))
-from rtpecho import RtpEcho
-from rtpplay import RtpPlay
+from pysiptest.rtpecho import RtpEcho
+from pysiptest.rtpplay import RtpPlay
 
-import headerfield as hf
-import sipmsg
-import support
-import publish_msg as psm
+import pysiptest.headerfield as hf
+import pysiptest.sipmsg as sipmsg
+import pysiptest.support as support
+import pysiptest.publish_msg as psm
 
 # pylint: disable=W0613,C0116
 

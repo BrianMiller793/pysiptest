@@ -14,13 +14,12 @@ from behave.api.async_step import \
 from assertpy import assert_that
 
 # pylint: disable=E0401,C0413,C0116,E0102
-sys.path.append(os.getenv('PYSIP_LIB_PATH'))
 
-import headerfield as hf
-import sipmsg
-from rtpecho import RtpEcho
-from rtpplay import RtpPlay
-from support import digest_auth, sip_register,\
+import pysiptest.headerfield as hf
+import pysiptest.sipmsg as sipmsg
+from pysiptest.rtpecho import RtpEcho
+from pysiptest.rtpplay import RtpPlay
+from pysiptest.support import digest_auth, sip_register,\
     sip_invite, sip_ack, sip_bye
 
 @given('new connection with user "{user_name}" and server "{server_name}"')

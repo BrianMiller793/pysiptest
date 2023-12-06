@@ -8,8 +8,8 @@ from behave.api.async_step import use_or_create_async_context
 
 import os
 import sys
-sys.path.append(os.getenv('PYSIP_LIB_PATH'))
-from sipphone import AutoAnswer, AutoReply
+#sys.path.append(os.getenv('PYSIP_LIB_PATH'))
+from pysiptest.sipphone import AutoAnswer, AutoReply
 
 TEST_HOST = '192.168.0.153'
 PASSWORD_UCM = 'hownowbrowncow123'

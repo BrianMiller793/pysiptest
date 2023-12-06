@@ -7,9 +7,9 @@ import asyncio
 import copy
 import logging
 
-import support
-import headerfield as hf
-import sipmsg
+import pysiptest.support
+import pysiptest.headerfield as hf
+import pysiptest.sipmsg as sipmsg
 
 def rtp_sockname_from_sdp(sip_msg:str) -> tuple:
     '''Construct sockname from SDP message.'''

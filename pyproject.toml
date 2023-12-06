@@ -6,11 +6,13 @@ build-backend = "hatchling.build"
 name = "pysiptest"
 version = "0.0.1"
 authors = [
-  { name="Brian Miller", email="BrianMiller793@gmail.com" },
+  { name="Brian Miller", email="rfc793maniac@gmail.com" },
 ]
+
 description = "Behave-driven SIP unit test framework"
 readme = "README.md"
 requires-python = ">=3.8"
+
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: Free for non-commercial use",
@@ -18,6 +20,19 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+dependencies = [
+  "assertpy",
+  "behave",
+  "dpkt",
+  "ntplib",
+  "pylint",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/BrianMiller793/pysiptest"
 "Bug Tracker" = "https://github.com/BrianMiller793/pysiptest/issues"
+
+[tool.hatch.build]
+include = [
+  "pysiptest",
+]

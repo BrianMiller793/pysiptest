@@ -3,7 +3,7 @@
 # vim: set ai ts=4 sw=4 expandtab:
 
 #import logging
-import headerfield as hf
+import pysiptest.headerfield as hf
 
 class SipMessage():
     """ Minimum SIP Request header """
