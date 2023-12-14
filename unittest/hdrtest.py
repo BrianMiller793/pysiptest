@@ -3,9 +3,8 @@
 
 import unittest
 import sys
-sys.path.append('..')
 
-import headerfield as hf
+import pysiptest.headerfield as hf
 
 def exists(objects, name):
     for o in objects:

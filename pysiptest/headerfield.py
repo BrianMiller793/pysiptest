@@ -556,7 +556,7 @@ class Contact(HeaderField):
         param_str = ''
         for cp_key in self.contact_params.keys():
             param = self.contact_params[cp_key]
-            if param_str != '':
+            if param_str:
                 param_str += ','
             if 'display-name' in self.contact_params[cp_key].keys():
                 param_str += f'"{self.contact_params[cp_key]["display-name"]}" <{cp_key}>'
@@ -570,7 +570,7 @@ class Contact(HeaderField):
 
     def from_string(self, hdr_value):
         self._parse_value(hdr_value)
-        self.value = self._to_string()
+        self._to_string()
 
     def __str__(self):
         return "{}: {}".format(

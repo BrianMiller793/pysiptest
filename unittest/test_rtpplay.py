@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from rtpplay import RtpPlay
+from pysiptest.rtpplay import RtpPlay
 
 async def play(pcap_name=None):
     loop = asyncio.get_running_loop()

@@ -3,10 +3,8 @@
 import sys
 import unittest
 
-sys.path.append('..')
-
-import headerfield as hf
-import sipmsg
+import pysiptest.headerfield as hf
+import pysiptest.sipmsg as sipmsg
 
 class TestSipMessage(unittest.TestCase):
     '''Unit tests for sipmsg classes.'''

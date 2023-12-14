@@ -5,8 +5,7 @@ import sys
 import unittest
 import urllib.request, urllib.error, urllib.parse
 
-sys.path.append('..')
-from digestauth import SipDigestAuth
+from pysiptest.digestauth import SipDigestAuth
 
 # Author: Brian C. Miller
 # Copyright 2017-2022, all rights reserved
