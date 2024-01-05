@@ -7,7 +7,7 @@ import asyncio
 import copy
 import logging
 
-import pysiptest.support
+import pysiptest.support as support
 import pysiptest.headerfield as hf
 import pysiptest.sipmsg as sipmsg
 
@@ -88,20 +88,20 @@ class SipPhoneUdpClient:
 
     def connection_made(self, transport):
         '''Base protcol: Called when a connection is made.'''
-        logging.info('SipPhoneUdpClient:connection_made')
+        logging.debug('SipPhoneUdpClient:connection_made')
         self.transport = transport
         self.local_addr = transport.get_extra_info('socket').getsockname()
 
     def connection_lost(self, exc):             # pylint: disable=W0613
         '''Base protcol: Called when a connection is lost or closed.'''
-        logging.info('SipPhoneUdpClient:connection_lost')
+        logging.debug('SipPhoneUdpClient:connection_lost')
         if self.on_con_lost is not None:
             self.on_con_lost.set_result(True)
 
     def datagram_received(self, data, addr):    # pylint: disable=W0613
         '''Datagram protcol: Called when a datagram is received.
         The is put on the rcv_queue if there is no Call-ID'''
-        logging.info('SipPhoneUdpClient:datagram_received')
+        logging.debug('SipPhoneUdpClient:datagram_received')
         sip_msg = data.decode()
         logging.debug('SipPhoneUdpClient:datagram_received: sip_msg=%s', sip_msg)
         self.recvd_pkts.append(copy.copy(sip_msg))
@@ -118,14 +118,14 @@ class SipPhoneUdpClient:
 
     def sendto(self, sip_msg: sipmsg.SipMessage):
         '''Send SIP message to UAS.'''
-        logging.info('SipPhoneUdpClient:sendto')
+        logging.debug('SipPhoneUdpClient:sendto')
         logging.debug('SipPhoneUdpClient:sendto: sipmsg=%s', str(sip_msg))
         self.sent_msgs.append(sip_msg)
         self.transport.sendto(str(sip_msg).encode())
 
     def error_received(self, exc):
         '''Datagram protcol: Called when an error is received.'''
-        logging.info('SipPhoneUdpClient:error_received: %s', str(exc))
+        logging.debug('SipPhoneUdpClient:error_received: %s', str(exc))
 
 class RegisterUnregister(SipPhoneUdpClient):
     '''Provide registration and unregistration for endpoint.'''
@@ -144,7 +144,7 @@ class RegisterUnregister(SipPhoneUdpClient):
 
     def register_with_auth(self, sip_msg:str):
         '''State machine: Register with Authentication.'''
-        logging.info('SipPhoneUdpClient:register_with_auth')
+        logging.debug('SipPhoneUdpClient:register_with_auth')
         assert isinstance(sip_msg, str)
         assert self.user_info is not None
         # The message *should* be a 401 or 407
@@ -164,7 +164,7 @@ class RegisterUnregister(SipPhoneUdpClient):
 
     def registered(self, sip_msg:str):      # pylint: disable=W0613
         '''End state for registration, sets .wait'''
-        logging.info('SipPhoneUdpClient:registered')
+        logging.debug('SipPhoneUdpClient:registered')
         # The user *should* be waiting on this.
         if self.wait is not None:
             self.wait.set_result(True)
@@ -242,7 +242,7 @@ class AutoReply(KeepAlive):
         sip_msg = data.decode()
         sip_method = sip_msg.split(maxsplit=1)[0]
         if sip_method in self.auto_reply:
-            logging.info('AutoReply:datagram_received: auto reply to %s', sip_method)
+            logging.debug('AutoReply:datagram_received: auto reply to %s', sip_method)
             # Append packet for later reference, respond, exit processing
             self.recvd_pkts.append(copy.copy(sip_msg))
             response = sipmsg.Response(status_code=200, reason_phrase='OK')
@@ -271,7 +271,7 @@ class AutoAnswer(AutoReply):
         :param rtp_endpoint: RTP endpoint object, for echo or playback
         '''
         super().__init__(**kwargs)
-        logging.info('AutoAnswer:INITIALIZING')
+        logging.debug('AutoAnswer:INITIALIZING')
         self.rtp_endpoint = kwargs['rtp_endpoint'] \
             if 'rtp_endpoint' in kwargs else None
         self.in_a_call = False
@@ -300,16 +300,16 @@ class AutoAnswer(AutoReply):
     def answer_invite(self, sip_msg:str):
         '''Send the responses for a received INVITE message.
         The RTP client must already be started.'''
-        logging.info('AutoAnswer:answer_invite:Call-ID=%s', self.dialog['call_id'])
+        logging.debug('AutoAnswer:answer_invite:Call-ID=%s', self.dialog['call_id'])
         assert self.rtp_endpoint is not None
         # TODO: get destination RTP port
         # State:
         #  From: UAS user <sip:ext@dom>;tag=jfjfjfjf
         #  To: UAC user <sip:ext@dom>
-        logging.info('AutoAnswer:answer_invite:INVITE')
+        logging.debug('AutoAnswer:answer_invite:INVITE')
         self.dialog['req_uri'] = sip_msg.split(maxsplit=2)[1]
 
-        logging.info('AutoAnswer:answer_invite:sending:Trying')
+        logging.debug('AutoAnswer:answer_invite:sending:Trying')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='100', reason_phrase='Trying')
         response.sort()
@@ -320,14 +320,14 @@ class AutoAnswer(AutoReply):
         self.dialog['uas_user'] = response.field('From').value
         self.dialog['uac_user'] = response.field('To').value
 
-        logging.info('AutoAnswer:answer_invite:sending:Ringing')
+        logging.debug('AutoAnswer:answer_invite:sending:Ringing')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
         response.field('To').tag = self.dialog['uac_tag']
         response.sort()
         self.sendto(response)
 
-        logging.info('AutoAnswer:answer_invite:sending:OK')
+        logging.debug('AutoAnswer:answer_invite:sending:OK')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='200', reason_phrase='OK')
         response.field('To').tag = self.dialog['uac_tag']
@@ -342,7 +342,7 @@ class AutoAnswer(AutoReply):
 
     def answer_ack(self, sip_msg:str):  # pylint: disable=W0613
         '''ACK state for received call'''
-        logging.info('AutoAnswer:answer_ack:Call-ID=%s', self.dialog['call_id'])
+        logging.debug('AutoAnswer:answer_ack:Call-ID=%s', self.dialog['call_id'])
         self.in_a_call = True
         # The user *should* be waiting on this
         if self.wait is not None:
@@ -355,7 +355,7 @@ class AutoAnswer(AutoReply):
 
     def dial(self, recipient):
         '''Initiate call to recipient (dialog). RTP must be ready.'''
-        logging.info('AutoAnswer:dial()')
+        logging.debug('AutoAnswer:dial()')
         # self.user_info
         invite = support.sip_invite(self.local_addr,
             self.user_info, recipient,
@@ -380,7 +380,7 @@ class AutoAnswer(AutoReply):
 
     def dial_callback(self, sip_msg:str):
         '''State machine callback for INVITE sequence. Expect response.'''
-        logging.info('AutoAnswer:dial_callback')
+        logging.debug('AutoAnswer:dial_callback')
         code = sip_msg.split(maxsplit=2)[1]
         if code == '100':
             self.dial_100trying(sip_msg)
@@ -395,13 +395,13 @@ class AutoAnswer(AutoReply):
 
     def dial_100trying(self, sip_msg:str):
         '''State machine callback for 100 Trying.'''
-        logging.info('AutoAnswer:dial_100trying')
+        logging.debug('AutoAnswer:dial_100trying')
         fields = hf.msg2fields(sip_msg)
         self.state_callback[fields['Call-ID']] = self.dial_callback
 
     def dial_407proxy_auth_req(self, sip_msg:str):
         '''State machine callback for 407 Proxy Authentication Required.'''
-        logging.info('AutoAnswer:dial_407proxy_auth_req')
+        logging.debug('AutoAnswer:dial_407proxy_auth_req')
         sip_fields = hf.msg2fields(sip_msg)
         assert 'Proxy-Authenticate' in sip_fields.keys()
         # send ACK for 407
@@ -428,13 +428,13 @@ class AutoAnswer(AutoReply):
 
     def dial_180ringing(self, sip_msg:str):
         '''State machine callback for 180 Ringing.'''
-        logging.info('AutoAnswer:dial_180ringing')
+        logging.debug('AutoAnswer:dial_180ringing')
         fields = hf.msg2fields(sip_msg)
         self.state_callback[fields['Call-ID']] = self.dial_callback
 
     def dial_200ok(self, sip_msg:str):
         '''State machine callback for 200 OK w/SDP, respond with ACK'''
-        logging.info('AutoAnswer:dial_200ok')
+        logging.debug('AutoAnswer:dial_200ok')
         # Get destination RTP endpoint
         rtp_sock = rtp_sockname_from_sdp(sip_msg)
         self.rtp_endpoint.dest_addr = rtp_sock
@@ -456,7 +456,7 @@ class AutoAnswer(AutoReply):
 
     def hangup(self):
         '''Initiate end connection. Send BYE, wait for OK.'''
-        logging.info('AutoAnswer:hangup')
+        logging.debug('AutoAnswer:hangup')
         assert 'call_id' in self.dialog
         assert 'req_uri' in self.dialog
         assert 'contact' in self.dialog
@@ -487,7 +487,7 @@ class AutoAnswer(AutoReply):
 
     def bye_200ok(self, sip_msg:str):   # pylint: disable=W0613
         '''Response from UAS after sending BYE.'''
-        logging.info('AutoAnswer:bye_200ok')
+        logging.debug('AutoAnswer:bye_200ok')
         self.clear_endpoint()
         # The user *should* be waiting on this.
         if self.wait is not None:
@@ -495,7 +495,7 @@ class AutoAnswer(AutoReply):
 
     def bye_dialog(self, sip_msg:str):
         '''Received request from UAS to end dialog.'''
-        logging.info('AutoAnswer:bye_dialog')
+        logging.debug('AutoAnswer:bye_dialog')
         bye_resp = sipmsg.Response(prev_msg=sip_msg, status_code=200, reason_phrase='OK')
         bye_resp.sort()
         self.sendto(bye_resp)
@@ -509,7 +509,7 @@ class AutoAnswer(AutoReply):
 
     def clear_endpoint(self):
         '''End state, clear endpoint data.'''
-        logging.info('AutoAnswer:clear_endpoint')
+        logging.debug('AutoAnswer:clear_endpoint')
         self.rtp_endpoint.end()
         self.in_a_call = False
         self.dialog = {}

@@ -16,27 +16,27 @@ PASSWORD_DOCKER = 'hownowbrowncow123'
 TEST_USERS = {
     # Receiver
     'Alice': {
-        'name': 'Alice',
-        'extension': '2006',
         'domain': 'teo',
-        'sipuri': 'sip:2006@teo',
+        'name': 'Alice',
+        'extension': '2000',
+        'sipuri': 'sip:2000@teo',
         'password': PASSWORD_UCM,
         'server': 'Docker',
         'transport': AutoAnswer},
     # Caller
     'Bob': {
-        'name': 'Bob',
-        'extension': '2007',
         'domain': 'teo',
-        'sipuri': 'sip:2007@teo',
+        'name': 'Bob',
+        'extension': '2001',
+        'sipuri': 'sip:2001@teo',
         'password': PASSWORD_UCM,
         'server': 'Docker',
         'transport': AutoAnswer},
     'Charlie': {
-        'name': 'Charlie',
-        'extension': '2008',
         'domain': 'teo',
-        'sipuri': 'sip:2008@teo',
+        'name': 'Charlie',
+        'extension': '2003',
+        'sipuri': 'sip:2003@teo',
         'password': PASSWORD_UCM,
         'server': 'Docker',
         'transport': AutoAnswer}}

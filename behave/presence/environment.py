@@ -6,43 +6,41 @@ import logging
 from behave import fixture, use_fixture
 from behave.api.async_step import use_or_create_async_context
 
-import os
-import sys
 from pysiptest.sipphone import AutoAnswer, AutoReply
 
-TEST_HOST = '192.168.0.143'
 PASSWORD_UCM = 'hownowbrowncow123'
 PASSWORD_DOCKER = 'hownowbrowncow123'
 TEST_USERS = {
     # Receiver
     'Alice': {
-        'name': 'Alice',
-        'extension': '2006',
         'domain': 'teo',
-        'sipuri': 'sip:2006@teo',
+        'name': 'Alice',
+        'extension': '2000',
+        'sipuri': 'sip:2000@teo',
         'password': PASSWORD_UCM,
-        'server': 'Biloxi',
+        'server': 'Docker',
         'transport': AutoAnswer},
     # Caller
     'Bob': {
-        'name': 'Bob',
-        'extension': '2007',
         'domain': 'teo',
-        'sipuri': 'sip:2007@teo',
+        'name': 'Bob',
+        'extension': '2001',
+        'sipuri': 'sip:2001@teo',
         'password': PASSWORD_UCM,
-        'server': 'Biloxi',
+        'server': 'Docker',
         'transport': AutoAnswer},
     'Charlie': {
-        'name': 'Charlie',
-        'extension': '2008',
         'domain': 'teo',
-        'sipuri': 'sip:2008@teo',
+        'name': 'Charlie',
+        'extension': '2002',
+        'sipuri': 'sip:2002@teo',
         'password': PASSWORD_UCM,
-        'server': 'Biloxi',
+        'server': 'Docker',
         'transport': AutoAnswer}}
+TEST_HOST = '192.168.0.143'
 TEST_SERVERS = {
     'Biloxi': ('192.168.0.203', 5060),
-    'Docker': ('192.168.0.153', 5060)} # Docker running with --network=host
+    'Docker': ('192.168.0.143', 5060)} # Docker running with --network=host
 
 async def init_transport(
     context, async_context, user_name, user_info):
@@ -65,6 +63,21 @@ async def init_transport(
     if not hasattr(context, 'sip_xport'):
         context.sip_xport = {}
     context.sip_xport[user_name] = (transport, protocol)
+
+async def unregister_user(
+    context, async_context, name):
+    '''Unregister a user after a scenario.
+
+    :param context: Behave test context.
+    :param async_context: Async context for asyncio operations.
+    :param name: User name to unregister.
+    '''
+    user_protocol = context.sip_xport[name][1]
+
+    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.start_unregistration()
+    await user_protocol.wait
+    user_protocol.wait = None
 
 @fixture
 def udp_transport(context):
@@ -121,3 +134,13 @@ def before_feature(context, feature): # pylint: disable=W0613
     '''Set up test context.'''
     logging.debug('before_feature:udp_transport')
     use_fixture(udp_transport, context)
+
+def after_feature(context, feature):
+    logging.debug('after_feature:udp_transport')
+    async_context = use_or_create_async_context(context, 'udp_transport')
+    for user_name in TEST_USERS.keys():
+        logging.debug('fixture udp_transport, user_name=%s', user_name)
+        task = async_context.loop.create_task(
+            unregister_user(context, async_context,
+                user_name))
+        async_context.loop.run_until_complete(task)

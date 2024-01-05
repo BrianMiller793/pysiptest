@@ -6,10 +6,13 @@
 #           Partial Presence
 # RFC 4662, A Session Initiation Protocol (SIP) Event Notification
 #           Extension for Resource Lists
+# RFC 3903, Session Initiation Protocol (SIP) Extension
+#           for Event State Publication
 # RFC 3265, Session Initiation Protocol (SIP)-Specific Event Notification,
 #           obsoleted by 6665
 
 from asyncio import sleep
+import copy
 import logging
 import os
 import sys
@@ -25,23 +28,24 @@ from pysiptest.rtpplay import RtpPlay
 import pysiptest.headerfield as hf
 import pysiptest.sipmsg as sipmsg
 import pysiptest.support as support
-import pysiptest.publish_msg as psm
+import publish_msg as psm
 
 # pylint: disable=W0613,C0116
 
-async def wait_for_response(protocol, expected_code):
+async def wait_for_response(protocol, expected_codes):
     '''Wait for a response, and assert its value.'''
     response = await protocol.rcv_queue.get()
     while response is not None:
+        logging.info('wait_for_response: received %s', sipmsg.Response.get_code(response))
         code = int(sipmsg.Response.get_code(response))
-        logging.info('wait_for_response: received %i', code)
+        if code in expected_codes:
+            return response
         assert_that(code).described_as('response').is_less_than(300)
         if code >= 200:
             break
         response = await protocol.rcv_queue.get()
 
-    assert_that(sipmsg.Response.get_code(response))\
-        .described_as('response').is_equal_to(expected_code)
+    assert_that(sipmsg.Response.get_code(response)).is_in(*expected_codes)
     return response
 
 # REGISTER sip:teo SIP/2.0
@@ -164,12 +168,30 @@ async def step_impl(context, name, user_or_uri):
     else:
         req_uri = user_or_uri
 
-    presence_sub = support.sip_subscribe(context.test_users[name],
+    subscribe_sub = support.sip_subscribe(context.test_users[name],
         context.test_users[user_or_uri]['sipuri'], req_uri,
         sockname=user_protocol.local_addr, event='presence',
         accept='multipart/related, application/rlmi+xml, application/pidf+xml')
-    user_protocol.sendto(presence_sub)
-    await wait_for_response(user_protocol, '202')
+    user_protocol.sendto(subscribe_sub)
+    response = await wait_for_response(user_protocol, [202, 407])
+
+    rfields = hf.msg2fields(response)
+    response_status = rfields['SIP/2.0'].split(maxsplit=1)[0]
+    logging.info('__ subscribes to __: response, status=%s', response_status)
+    if response_status == '407':
+        subscribe_auth = copy.copy(subscribe_sub)
+        sip_auth_uri = f"sip:{context.test_users[name]['domain']}"
+        logging.info('challenge=%s, request_method=%s, userinfo:%s, uri=%s',
+                rfields['Proxy-Authenticate'],
+                subscribe_auth.method, str(context.test_users[name]), sip_auth_uri)
+        subscribe_auth.hdr_fields.append(
+            hf.Proxy_Authorization(value=support.digest_auth(
+                rfields['Proxy-Authenticate'],
+                subscribe_auth.method, context.test_users[name], uri=sip_auth_uri)))
+        subscribe_auth.field('CSeq').value = user_protocol.cseq_out_of_dialog
+        subscribe_auth.sort()
+        user_protocol.sendto(subscribe_auth)
+        await wait_for_response(user_protocol, [202])
 
 @then('"{name}" unsubscribes from "{user_or_uri}"')
 @async_run_until_complete(async_context='udp_transport')
@@ -188,7 +210,25 @@ async def step_impl(context, name, user_or_uri):
         accept='multipart/related, application/rlmi+xml, application/pidf+xml',
         expires=0)
     user_protocol.sendto(presence_unsub)
-    await wait_for_response(user_protocol, '202')
+    response = await wait_for_response(user_protocol, [202, 407])
+
+    rfields = hf.msg2fields(response)
+    response_status = rfields['SIP/2.0'].split(maxsplit=1)[0]
+    logging.info('__ subscribes to __: response, status=%s', response_status)
+    if response_status == '407':
+        unsub_auth = copy.copy(presence_unsub)
+        sip_auth_uri = f"sip:{context.test_users[name]['domain']}"
+        logging.info('challenge=%s, request_method=%s, userinfo:%s, uri=%s',
+                rfields['Proxy-Authenticate'],
+                unsub_auth.method, str(context.test_users[name]), sip_auth_uri)
+        unsub_auth.hdr_fields.append(
+            hf.Proxy_Authorization(value=support.digest_auth(
+                rfields['Proxy-Authenticate'],
+                unsub_auth.method, context.test_users[name], uri=sip_auth_uri)))
+        unsub_auth.field('CSeq').value = user_protocol.cseq_out_of_dialog
+        unsub_auth.sort()
+        user_protocol.sendto(unsub_auth)
+        await wait_for_response(user_protocol, [202])
 
 @then('"{subscriber}" has received "{state}" notification for "{source}"')
 def step_impl(context, subscriber, state, source):
@@ -220,7 +260,7 @@ async def step_impl(context, name, state):
     logging.info('__ sets presence to __: publish=%s', str(publish))
     user_protocol.sendto(publish)
 
-    response = await wait_for_response(user_protocol, '200')
+    response = await wait_for_response(user_protocol, [200])
     rfields = hf.msg2fields(response)
     assert_that(rfields).described_as('PUBLISH response').contains('SIP-ETag')
     context.SIP_ETag = rfields['SIP-ETag']

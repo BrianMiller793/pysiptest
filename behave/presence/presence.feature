@@ -1,7 +1,17 @@
 Feature: Presence Notification Represents Call and User States
 
+  Scenario: UC Reflects Unregistered Status
+    Given "Alice" registers
+    Then pause for 1 seconds
+    Then "Alice" subscribes to "Bob"
+    Then pause for 1 seconds
+    #Then "Alice" has received "Unavailable" notification for "Bob"
+    Then "Alice" has received "Unregistered" notification for "Bob"
+
   Scenario: Activity Creates Presence Notification
     Given "Alice" registers
+    Then pause for 1 seconds
+    Then "Alice" sets presence to "Available"
     Then pause for 1 seconds
     Given "Bob" registers
     Then pause for 1 seconds
@@ -27,10 +37,6 @@ Feature: Presence Notification Represents Call and User States
 
     Then "Charlie" unsubscribes from "Alice"
     Then "Charlie" unsubscribes from "Bob"
-
-    Then "Alice" unregisters
-    Then "Bob" unregisters
-    Then "Charlie" unregisters
 
   Scenario: User-initiated Presence Settings are Reflected by UC
     Given "Alice" registers
@@ -76,6 +82,17 @@ Feature: Presence Notification Represents Call and User States
     Then pause for 1 seconds
     Then "Bob" has received "Available" notification for "Alice"
 
+  Scenario: UC Pushes Presence for New Registrations
+    Given "Alice" registers
+    Then pause for 1 seconds
+    Then "Alice" sets presence to "Away"
+
+    Given "Bob" registers
+    Then pause for 1 seconds
+    Then "Bob" subscribes to "Alice"
+    Then pause for 1 seconds
+    Then "Bob" has received "Away" notification for "Alice"
     Then "Bob" unsubscribes from "Alice"
-    Then "Alice" unregisters
-    Then "Bob" unregisters
+
+    Then "Alice" sets presence to "Available"
+    Then pause for 1 seconds
