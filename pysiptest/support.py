@@ -7,29 +7,8 @@ Functions to support steps Feature: Registration, RFC 3665, Section 2
 import os
 import random
 
-from pysiptest.digestauth import SipDigestAuth
 import pysiptest.headerfield as hf
 import pysiptest.sipmsg as sipmsg
-
-def digest_auth(challenge:str, request_method:str, userinfo:dict, uri:str=None):
-    '''Create response to challenge WWW-Authenticate or Proxy-Authenticate.
-
-    :param challenge: Challenge value from *-Authenticate
-    :param request: Request method issuing challenge
-    :param userinfo: User info from environment.py
-    :param uri: Destination URI
-    :return Authorization: Completed Authorization header
-    '''
-    assert isinstance(challenge, str)
-    assert isinstance(request_method, str)
-    assert isinstance(userinfo, dict)
-
-    if uri is None:
-        uri = f'sip:{userinfo["domain"]}'
-    sda = SipDigestAuth() # Create digest authentication
-    sda.parse_challenge(challenge)
-    return sda.get_auth_digest(request_method, uri,
-        userinfo['extension'], userinfo['password'])
 
 def sip_sdp(owner, sockname=None, network='IN IP4') -> str:
     '''Create SDP info
@@ -174,7 +153,8 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None) -> sipmsg.
     bye.sort()
     return bye
 
-def sip_options(userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
+def sip_options(userinfo:dict, addr:tuple,
+    user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
     '''Create OPTIONS request message for keep-alive, outside of dialog.
 
     :param userinfo: User information from test environment.
@@ -192,6 +172,7 @@ def sip_options(userinfo:dict, addr:tuple) -> sipmsg.SipMessage:
     options.field('From').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     options.field('To').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     options.hdr_fields.append(hf.Contact(value=addr_contact))
+    options.hdr_fields.append(hf.User_Agent(value=user_agent))
     options.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     options.sort()
@@ -233,7 +214,7 @@ def sip_refer(from_user:dict, to_user:dict,
 # pylint: disable=R0913
 def sip_subscribe(from_user:dict, to_sipuri:dict, request_uri:str,
     sockname:tuple, event:str, accept:str, supported:str=None, expires:int=300, \
-    user_agent='pysip/123456_DEADBEEFCAFE'):
+    call_id:str=None, user_agent='pysip/123456_DEADBEEFCAFE'):
     '''Create SUBSCRIBE request
 
     :param from_user: User URI generating request.
@@ -266,6 +247,8 @@ def sip_subscribe(from_user:dict, to_sipuri:dict, request_uri:str,
     subscribe.field('Contact').from_string(
         f'<sip:{from_user["extension"]}@{sockname[0]}:{sockname[1]}>')
     subscribe.field('CSeq').method = subscribe.method
+    if call_id:
+        subscribe.field('Call_ID').value = call_id
     subscribe.field('Event').value = event
     if supported is not None:
         subscribe.hdr_fields.append(hf.Supported(value=supported))

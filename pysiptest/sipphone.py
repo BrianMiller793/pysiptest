@@ -7,9 +7,10 @@ import asyncio
 import copy
 import logging
 
-import pysiptest.support as support
+from pysiptest.digestauth import SipDigestAuth
+from pysiptest import support
 import pysiptest.headerfield as hf
-import pysiptest.sipmsg as sipmsg
+from pysiptest import sipmsg
 
 def rtp_sockname_from_sdp(sip_msg:str) -> tuple:
     '''Construct sockname from SDP message.'''
@@ -43,6 +44,7 @@ class SipPhoneUdpClient:
         self._cseq_in_dialog = 0
         self._cseq_out_of_dialog = 0
         self.local_addr = None              # sockname of SIP client
+        self.sip_digest_auth = SipDigestAuth() # Create digest authentication
 
     @property
     def cseq_in_dialog(self):
@@ -55,6 +57,25 @@ class SipPhoneUdpClient:
         '''CSeq for out-of-dialog messages, autoincrements.'''
         self._cseq_out_of_dialog += 1
         return self._cseq_out_of_dialog
+
+    def get_digest_auth(self, challenge:str, request_method:str, userinfo:dict, uri:str=None):
+        '''Create response to challenge WWW-Authenticate or Proxy-Authenticate.
+
+        :param challenge: Challenge value from *-Authenticate
+        :param request: Request method issuing challenge
+        :param userinfo: User info from environment.py
+        :param uri: Destination URI
+        :return Authorization: Completed Authorization header
+        '''
+        assert isinstance(challenge, str)
+        assert isinstance(request_method, str)
+        assert isinstance(userinfo, dict)
+
+        if uri is None:
+            uri = f'sip:{userinfo["domain"]}'
+        self.sip_digest_auth.parse_challenge(challenge)
+        return self.sip_digest_auth.get_auth_digest(request_method, uri,
+            userinfo['extension'], userinfo['password'])
 
     def get_prev_sent(self, method:str) -> sipmsg.SipMessage:
         '''Get a copy of a previously sent request.
@@ -130,13 +151,17 @@ class SipPhoneUdpClient:
 class RegisterUnregister(SipPhoneUdpClient):
     '''Provide registration and unregistration for endpoint.'''
 
-    def start_registration(self):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.is_registered = False
+
+    def start_registration(self, expires=60):
         '''State machine: Start registration for client'''
         # Send REGISTER without authentication
         if len(self.user_info) == 0:
             raise AttributeError('user_info not set')
         register = support.sip_register(self.local_addr, self.user_info,
-            expires=60)
+            expires=expires)
         register.field('CSeq').value = self.cseq_out_of_dialog
         self.state_callback[register.field('Call_ID').value] = \
             self.register_with_auth
@@ -153,7 +178,7 @@ class RegisterUnregister(SipPhoneUdpClient):
 
         register = self.get_prev_sent('REGISTER')
         register.hdr_fields.append(
-            hf.Authorization(value=support.digest_auth(
+            hf.Authorization(value=self.get_digest_auth(
                 sip_fields['WWW-Authenticate'], register.method,
                 self.user_info)))
         register.field('CSeq').value = self.cseq_out_of_dialog
@@ -165,12 +190,22 @@ class RegisterUnregister(SipPhoneUdpClient):
     def registered(self, sip_msg:str):      # pylint: disable=W0613
         '''End state for registration, sets .wait'''
         logging.debug('SipPhoneUdpClient:registered')
+        code = int(sipmsg.Response.get_code(sip_msg))
+        if 200 <= code < 300:
+            self.is_registered = not self.is_registered
         # The user *should* be waiting on this.
         if self.wait is not None:
             self.wait.set_result(True)
 
     def start_unregistration(self):
         '''State machine: Unregister from UAS'''
+        logging.debug(
+            'start_unregistration: userinfo.extension=%s is_registered=%s',
+            self.user_info['extension'], str(self.is_registered))
+        if not self.is_registered:
+            if self.wait is not None:
+                self.wait.set_result(True)
+            return
         if len(self.user_info) == 0:
             raise AttributeError('user_info not set')
         sock_addr = self.transport.get_extra_info('socket').getsockname()
@@ -202,6 +237,7 @@ class KeepAlive(RegisterUnregister):
         self.user_info = kwargs['user_info']
         self.options_msg = None
         self.fire_at = None
+        self.ka_interval = 60
         self.branch = None
 
     def connection_made(self, transport):
@@ -212,7 +248,7 @@ class KeepAlive(RegisterUnregister):
         self.options_msg = support.sip_options(self.user_info, addr)
         self.options_msg.field('CSeq').value = self.cseq_out_of_dialog
         self.branch = self.options_msg.field('Via').via_params['branch']
-        self.fire_at = self.loop.time() + 10
+        self.fire_at = self.loop.time() + self.ka_interval
         self.loop.call_at(self.fire_at, self.callback_event)
 
     def datagram_received(self, data, addr):    # pylint: disable=W0613
@@ -224,9 +260,10 @@ class KeepAlive(RegisterUnregister):
 
     def callback_event(self):
         '''This is event is fired to send the OPTIONS packet.'''
-        self.sendto(self.options_msg)
-        self.options_msg.field('CSeq').value = self.cseq_out_of_dialog
-        self.fire_at += 10
+        if self.is_registered:
+            self.sendto(self.options_msg)
+            self.options_msg.field('CSeq').value = self.cseq_out_of_dialog
+        self.fire_at += self.ka_interval
         self.loop.call_at(self.fire_at, self.callback_event)
 
 class AutoReply(KeepAlive):
@@ -417,7 +454,7 @@ class AutoAnswer(AutoReply):
         assert invite.field('Authorization') is None
 
         invite.hdr_fields.append(
-            hf.Proxy_Authorization(value=support.digest_auth(
+            hf.Proxy_Authorization(value=self.get_digest_auth(
                 sip_fields['Proxy-Authenticate'],
                 invite.method, self.user_info, uri=self.user_info['sipuri'])))
         invite.field('CSeq').value = self.cseq_out_of_dialog
