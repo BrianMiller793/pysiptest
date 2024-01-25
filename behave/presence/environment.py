@@ -2,45 +2,14 @@
 
 '''Test environment setup for Behave test steps.'''
 
+import csv
 import logging
+import os
 from behave import fixture, use_fixture
 from behave.api.async_step import use_or_create_async_context
 
 from pysiptest.sipphone import AutoAnswer, AutoReply
-
-PASSWORD_UCM = 'hownowbrowncow123'
-PASSWORD_DOCKER = 'hownowbrowncow123'
-TEST_USERS = {
-    # Receiver
-    'Alice': {
-        'domain': 'teo',
-        'name': 'Alice',
-        'extension': '2000',
-        'sipuri': 'sip:2000@teo',
-        'password': PASSWORD_UCM,
-        'server': 'Docker',
-        'transport': AutoAnswer},
-    # Caller
-    'Bob': {
-        'domain': 'teo',
-        'name': 'Bob',
-        'extension': '2001',
-        'sipuri': 'sip:2001@teo',
-        'password': PASSWORD_UCM,
-        'server': 'Docker',
-        'transport': AutoAnswer},
-    'Charlie': {
-        'domain': 'teo',
-        'name': 'Charlie',
-        'extension': '2002',
-        'sipuri': 'sip:2002@teo',
-        'password': PASSWORD_UCM,
-        'server': 'Docker',
-        'transport': AutoAnswer}}
-TEST_HOST = '192.168.0.143'
-TEST_SERVERS = {
-    'Biloxi': ('192.168.0.203', 5060),
-    'Docker': ('192.168.0.143', 5060)} # Docker running with --network=host
+import testdata as td
 
 async def init_transport(
     context, async_context, user_name, user_info):
@@ -58,18 +27,31 @@ async def init_transport(
             lambda: user_info['transport'](
                 user_info=user_info,
                 loop=async_context.loop),
-            remote_addr=TEST_SERVERS[user_info['server']])
+            remote_addr=td.TEST_SERVERS[user_info['server']])
 
     if not hasattr(context, 'sip_xport'):
         context.sip_xport = {}
     context.sip_xport[user_name] = (transport, protocol)
 
-async def unregister_user(
-    context, async_context, name):
+async def register_user(context, name):
+    '''Register a user.
+
+    :param context: Behave test context.
+    :param name: User name to unregister.
+    '''
+    user_protocol = context.sip_xport[name][1]
+
+    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.start_registration()
+    await user_protocol.wait
+    is_registered = user_protocol.wait.result()
+    user_protocol.wait = None
+    return is_registered
+
+async def unregister_user(context, name):
     '''Unregister a user after a scenario.
 
     :param context: Behave test context.
-    :param async_context: Async context for asyncio operations.
     :param name: User name to unregister.
     '''
     user_protocol = context.sip_xport[name][1]
@@ -89,11 +71,11 @@ def udp_transport(context):
     async_context = use_or_create_async_context(context, 'udp_transport')
 
     # Create the task for the client
-    for user_name in TEST_USERS.keys():
+    for user_name in td.TEST_USERS:
         logging.debug('fixture udp_transport, user_name=%s', user_name)
         task = async_context.loop.create_task(
             init_transport(context, async_context,
-                user_name, TEST_USERS[user_name]))
+                user_name, td.TEST_USERS[user_name]))
         async_context.loop.run_until_complete(task)
     assert hasattr(context, 'sip_xport')
 
@@ -105,27 +87,58 @@ def udp_transport(context):
 @fixture
 def test_host(context):
     '''Provide test user data for tests.'''
-    context.test_host = TEST_HOST
+    context.test_host = td.TEST_HOST
     yield context.test_host
 
 @fixture
 def test_users(context):
     '''Provide test user data for tests.'''
-    context.test_users = TEST_USERS
+    context.test_users = td.TEST_USERS
     yield context.test_users
 
 @fixture
 def test_servers(context):
     '''Provide server data for tests.`'''
-    context.test_servers = TEST_SERVERS
+    context.test_servers = td.TEST_SERVERS
     yield context.test_servers
+
+###########################################
+def import_init_transport(context, import_file_name):
+    '''Import user from Teo CSV and initialize user network transport.'''
+    async_context = use_or_create_async_context(context, 'udp_transport')
+    with open(import_file_name, 'r', encoding='utf-8') as ucusers:
+        reader = csv.DictReader(ucusers)
+        for row in reader:
+            user_name = row['username']
+            td.TEST_USERS[user_name] = {
+                'domain': 'teo',
+                'name': row['username'],
+                'extension': row['listedPhoneNumber'],
+                'sipuri': f'sip:{row["listedPhoneNumber"]}@teo',
+                'password': td.PASSWORD_UCM,
+                'server': 'Docker',
+                'transport': AutoAnswer}
+
+            task = async_context.loop.create_task(
+                init_transport(context, async_context,
+                    user_name, td.TEST_USERS[user_name]))
+            async_context.loop.run_until_complete(task)
+
+###########################################
+def before_tag(context, tag):
+    '''Perform actions specific to tags.'''
+    if tag.startswith('import.'):
+        import_file_name = tag.replace('import.', '', 1)
+        assert os.path.isfile(import_file_name)
+        import_init_transport(context, import_file_name)
 
 def before_scenario(context, scenario):
     '''Set up test context and skip marked scenarios.'''
     # Skip all scenarios tagged with @skip
-    if "skip" in scenario.effective_tags:
+    if 'skip' in scenario.effective_tags:
         scenario.skip('Marked with @skip')
         return
+
     use_fixture(test_host, context)
     use_fixture(test_users, context)
     use_fixture(test_servers, context)
@@ -135,12 +148,12 @@ def before_feature(context, feature): # pylint: disable=W0613
     logging.debug('before_feature:udp_transport')
     use_fixture(udp_transport, context)
 
+# pylint: disable=W0613
 def after_feature(context, feature):
-    logging.debug('after_feature:udp_transport')
+    '''Unregister users after feature completed.'''
     async_context = use_or_create_async_context(context, 'udp_transport')
-    for user_name in TEST_USERS.keys():
+    for user_name in td.TEST_USERS:
         logging.debug('fixture udp_transport, user_name=%s', user_name)
         task = async_context.loop.create_task(
-            unregister_user(context, async_context,
-                user_name))
+            unregister_user(context, user_name))
         async_context.loop.run_until_complete(task)
