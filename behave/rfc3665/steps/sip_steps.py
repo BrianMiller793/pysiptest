@@ -6,21 +6,34 @@ Behave steps to for Feature: Registration, RFC 3665, Section 2
 from asyncio import sleep
 import copy
 import logging
-import os
-import sys
 from behave import given, when, then # pylint: disable=E0611
-from behave.api.async_step import \
-    async_run_until_complete, use_or_create_async_context
+from behave.api.async_step import async_run_until_complete
 from assertpy import assert_that
 
 # pylint: disable=E0401,C0413,C0116,E0102
 
 import pysiptest.headerfield as hf
-import pysiptest.sipmsg as sipmsg
-from pysiptest.rtpecho import RtpEcho
-from pysiptest.rtpplay import RtpPlay
-from pysiptest.support import digest_auth, sip_register,\
-    sip_invite, sip_ack, sip_bye
+from pysiptest import sipmsg
+from pysiptest.support import sip_register
+
+def get_digest_auth(sip_digest_auth, challenge:str, request_method:str, userinfo:dict, uri:str=None):
+    '''Create response to challenge WWW-Authenticate or Proxy-Authenticate.
+
+    :param challenge: Challenge value from *-Authenticate
+    :param request: Request method issuing challenge
+    :param userinfo: User info from environment.py
+    :param uri: Destination URI
+    :return Authorization: Completed Authorization header
+    '''
+    assert isinstance(challenge, str)
+    assert isinstance(request_method, str)
+    assert isinstance(userinfo, dict)
+
+    if uri is None:
+        uri = f'sip:{userinfo["domain"]}'
+    sip_digest_auth.parse_challenge(challenge)
+    return sip_digest_auth.get_auth_digest(request_method, uri,
+        userinfo['extension'], userinfo['password'])
 
 @given('new connection with user "{user_name}" and server "{server_name}"')
 @async_run_until_complete
@@ -89,8 +102,9 @@ def step(context, user_name):
     www_authenticate = sip_dict['WWW-Authenticate']
     sip_request = sip_dict['CSeq'].split()[-1] # Request name is in CSeq
     context.pending_msg.hdr_fields.append(
-        hf.Authorization(value=digest_auth(www_authenticate, sip_request,
-            context.test_users[user_name])))
+        hf.Authorization(value=\
+            get_digest_auth(context.test_users[user_name]['digestauth'],
+            www_authenticate, sip_request, context.test_users[user_name])))
 
     # New transaction, increment CSeq
     context.pending_msg.field('CSeq').value += 1
@@ -122,52 +136,6 @@ def step(context, user_name, header_field): # pylint: disable=W0613
     fields = hf.msg2fields(context.sip_xport[user_name][1].recvd_pkts[-1])
     assert_that(fields).does_not_contain(header_field)
 
-@given('"{user_name}" waits for a call')
-@async_run_until_complete(async_context='udp_datagram')
-async def step(context, user_name):
-    assert hasattr(context, 'sip_xport')
-    assert user_name in context.sip_xport.keys()
-    # Start RTP client for echo
-    async_context = use_or_create_async_context(context, 'udp_transport')
-    context.sip_xport[user_name][1].wait = \
-        async_context.loop.create_future()
-    _, protocol = \
-        await async_context.loop.create_datagram_endpoint(
-            lambda: RtpEcho(async_context.loop, on_con_lost=None),
-            local_addr=(context.test_host, 0))
-
-    context.sip_xport[user_name][1].rtp_endpoint = protocol
-
-@when('"{caller_name}" calls "{receiver_name}"')
-@async_run_until_complete(async_context='udp_datagram')
-async def step(context, caller_name, receiver_name):
-    # Start RTP client for playback
-    assert hasattr(context, 'test_host')
-    async_context = use_or_create_async_context(context, 'udp_transport')
-    transport, protocol = \
-        await async_context.loop.create_datagram_endpoint(
-            lambda: RtpPlay(on_con_lost=None,
-                file_name='/home/bmiller/sipp_call.pcap',
-                loop=async_context.loop),
-            local_addr=(context.test_host, 0))
-
-    logging.debug('... calls ...: RtpPlay sockname=%s',
-        transport.get_extra_info('socket').getsockname())
-    context.sip_xport[caller_name][1].rtp_sockname = \
-        transport.get_extra_info('socket').getsockname()
-    context.rtp_play = (transport, protocol)
-
-    addr = context.sip_xport[caller_name][1].local_addr
-    context.invite_msg = sip_invite(
-        addr,
-        context.test_users[caller_name],
-        context.test_users[receiver_name],
-        context.rtp_play[1].local_addr)
-    contact_info = context.test_users[caller_name]
-    context.invite_msg.field('Contact').from_string(
-        f'<sip:{contact_info["extension"]}@{addr[0]}:{addr[1]}>')
-    context.invite_msg.sort()
-
 @when('"{user_name}" Contact field port is set to {portnum}')
 def step(context, user_name, portnum):
     assert context.invite_msg is not None
@@ -175,118 +143,6 @@ def step(context, user_name, portnum):
     addr = context.sip_xport[user_name][1].local_addr
     context.invite_msg.field('Contact').from_string(
         f'<sip:{extension}@{addr[0]}:{portnum}>')
-
-@when('"{user_name}" makes the call')
-@async_run_until_complete(async_context='udp_datagram')
-async def step(context, user_name):
-    '''Make a call with authentication.  context.invite_msg is ready.'''
-    # Send INVITE w/SDP
-    # Wait 100 Trying
-    # Wait 407 Proxy Authentication Required
-    # Send ACK
-    # Send INVITE with Proxy-Authorization w/SDP
-    # Wait 100 Trying
-    # Wait 180 Ringing
-    # Wait 200 OK
-    # Send ACK
-    assert context.invite_msg is not None
-    # Send INVITE, expect SIP/2.0 407 Proxy Authentication Required
-    logging.info('%s makes the call: send INVITE', user_name)
-    context.sip_xport[user_name][1].sendto(context.invite_msg)
-
-    # Wait 100 Trying
-    raw_msg = await context.sip_xport[user_name][1].rcv_queue.get()
-    if sipmsg.Response.get_code(raw_msg) == 100:
-        # Wait 407 Proxy Authentication Required
-        raw_msg = await context.sip_xport[user_name][1].rcv_queue.get()
-    assert_that(sipmsg.Response.get_code(raw_msg)).described_as('response').is_equal_to('407')
-    # send ACK
-    logging.info('%s makes the call: create ACK', user_name)
-    addr = context.sip_xport[user_name][1].local_addr
-    auth_ack = sip_ack(raw_msg, context.test_users[user_name], addr)
-    logging.info('%s makes the call: ACK: %s', user_name, str(auth_ack))
-    context.sip_xport[user_name][1].sendto(auth_ack)
-
-    # Send INVITE with Proxy-Authorization
-    sip_dict = hf.msg2fields(context.sip_xport[user_name][1].recvd_pkts[-1])
-    assert 'Proxy-Authenticate' in sip_dict.keys()
-    proxy_authenticate = sip_dict['Proxy-Authenticate']
-    sip_request = sip_dict['CSeq'].split()[-1] # Request name is in CSeq
-    context.invite_msg.hdr_fields.append(
-        hf.Proxy_Authorization(value=digest_auth(proxy_authenticate,
-            sip_request, context.test_users[user_name],
-            uri=context.test_users[user_name]['sipuri'])))
-    context.invite_msg.field('CSeq').value += 1
-    context.invite_msg.sort()
-    logging.info('%s makes the call: send INVITE with Authorization', user_name)
-    context.sip_xport[user_name][1].sendto(context.invite_msg)
-
-    # Wait 100 Trying
-    raw_msg = await context.sip_xport[user_name][1].rcv_queue.get()
-    assert_that(sipmsg.Response.get_code(raw_msg)).described_as('response').is_equal_to('100')
-    # Wait 180 Ringing
-    raw_msg = await context.sip_xport[user_name][1].rcv_queue.get()
-    assert_that(sipmsg.Response.get_code(raw_msg)).described_as('response').is_equal_to('180')
-    # Wait 200 OK
-    raw_msg = await context.sip_xport[user_name][1].rcv_queue.get()
-    assert_that(sipmsg.Response.get_code(raw_msg)).described_as('response').is_equal_to('200')
-
-    sipsdp_fields = hf.msg2fields(raw_msg)
-    assert_that(sipsdp_fields['Content-Type'])\
-        .described_as('SIP field Content-Type').is_equal_to('application/sdp')
-    body = raw_msg[len(raw_msg) - int(sipsdp_fields['Content-Length']):]
-    rtp_ip = hf.sdp_fields(body, 'c')[0].split()[-1]
-    rtp_port = hf.sdp_fields(body, 'm')[0].split()[1]
-    context.rtp_play[1].dest_addr = (rtp_ip, int(rtp_port))
-    logging.debug('%s makes the call: remote RTP endpoint %s',
-        user_name, str(context.rtp_play[1].dest_addr))
-
-    # Begin the RTP playback
-    context.rtp_play[1].begin()
-    # Send ACK
-    sdp_msg = context.sip_xport[user_name][1].get_prev_rcvd(method='200')
-    prev_invite = context.sip_xport[user_name][1].get_prev_sent('INVITE')
-    proxy_auth = copy.deepcopy(prev_invite.field('Proxy_Authorization'))
-    ack_msg = sip_ack(sdp_msg, context.test_users[user_name], addr)
-    ack_msg.hdr_fields.append(proxy_auth)
-    ack_msg.sort()
-    context.sip_xport[user_name][1].sendto(ack_msg)
-
-# pylint: disable=W0613
-@then('"{user_name}" answers the call')
-@async_run_until_complete(async_context='udp_datagram')
-async def step(context, user_name):
-    # ## This sequence is actually in the autoresponse
-    # wait for INVITE
-    # send 100 Trying
-    # send 180 Ringing
-    # send 200 OK w/SDP body
-    # wait for ACK request
-    await context.sip_xport[user_name][1].wait
-    assert_that(context.sip_xport[user_name][1].in_a_call).is_true()
-
-@then('"{user_name}" ends the call')
-@async_run_until_complete(async_context='udp_datagram')
-async def step(context, user_name):
-    # Send BYE
-    addr = context.sip_xport[user_name][1].local_addr
-    # The SDP message will have the appropriate tags for To and From
-    sdp_msg = context.sip_xport[user_name][1].get_prev_rcvd(method='200')
-    assert sdp_msg is not None
-    # A received INVITE message will have Contact
-    invite_msg = context.sip_xport[user_name][1].get_prev_rcvd(method='INVITE')
-    contact = None
-    if invite_msg is not None:
-        logging.info('ends the call: INVITE found')
-        contact = hf.msg2fields(invite_msg)['Contact'].trim('<>')
-    logging.debug('ends the call: sdp_msg=%s', str(sdp_msg))
-    bye_msg = sip_bye(sdp_msg, context.test_users[user_name], addr, contact=contact)
-    logging.debug('ends the call: bye_msg=%s', str(bye_msg))
-    context.sip_xport[user_name][1].sendto(bye_msg)
-
-    # Expect 200 OK
-    resp_msg = await context.sip_xport[user_name][1].rcv_queue.get()
-    assert_that(sipmsg.Response.get_code(resp_msg)).described_as('response').is_equal_to('200')
 
 @then('"{user_name}" receives "{method}"')
 @async_run_until_complete(async_context='udp_datagram')

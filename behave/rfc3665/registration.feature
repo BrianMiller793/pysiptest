@@ -19,16 +19,6 @@ Feature: Registration, RFC 3665, Section 2
     Then "Alice" is registered at the server
 
   @skip
-  Scenario: Calls through UCM
-  Given "Alice" waits for a call
-  When "Bob" calls "Alice"
-    And "Bob" makes the call
-  Then "Alice" answers the call
-  Then pause for 5 seconds
-  Then "Bob" ends the call
-  Then "Alice" receives "BYE"
-
-  @skip
   Scenario: 2.3 Request for Current Contact List
     Given existing connection with user "Bob" and server "Docker"
     When "Bob" sends request REGISTER

@@ -6,12 +6,11 @@ import logging
 from behave import fixture, use_fixture
 from behave.api.async_step import use_or_create_async_context
 
-import os
-import sys
 #sys.path.append(os.getenv('PYSIP_LIB_PATH'))
 from pysiptest.sipphone import AutoAnswer, AutoReply
+from pysiptest.digestauth import SipDigestAuth
 
-TEST_HOST = '192.168.0.153'
+TEST_HOST = '192.168.0.143'
 PASSWORD_UCM = 'hownowbrowncow123'
 PASSWORD_DOCKER = 'hownowbrowncow123'
 TEST_USERS = {
@@ -23,6 +22,7 @@ TEST_USERS = {
         'sipuri': 'sip:2000@teo',
         'password': PASSWORD_DOCKER,
         'server': 'Docker',
+        'digestauth': SipDigestAuth(),
         'transport': AutoAnswer},
     # Caller
     'Bob': {
@@ -32,6 +32,7 @@ TEST_USERS = {
         'sipuri': 'sip:2001@teo',
         'password': PASSWORD_DOCKER,
         'server': 'Docker',
+        'digestauth': SipDigestAuth(),
         'transport': AutoReply}}
 TEST_SERVERS = {
     'Biloxi': ('192.168.0.203', 5060),
@@ -69,7 +70,7 @@ def udp_transport(context):
     async_context = use_or_create_async_context(context, 'udp_transport')
 
     # Create the task for the client
-    for user_name in TEST_USERS.keys():
+    for user_name in TEST_USERS:
         logging.debug('fixture udp_transport, user_name=%s', user_name)
         task = async_context.loop.create_task(
             init_transport(context, async_context,
