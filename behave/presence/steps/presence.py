@@ -166,51 +166,45 @@ async def step_impl(context, name, user_or_uri):
         req_uri = context.test_users[user_or_uri]['sipuri']
     else:
         req_uri = user_or_uri
-    sip_auth_uri = f"sip:{context.test_users[name]['domain']}"
+    if 'sip_auth_uri' in context.test_users[name]:
+        sip_auth_uri = context.test_users[name]['sip_auth_uri']
+    else:
+        sip_auth_uri = f"sip:{context.test_users[name]['domain']}"
 
     # RFC 3265 3.3.4, RFC 6665 4.4.1, Dialog creation and termination
     # Dialog is Call-ID, To, and Event
-    if 'subscriptions' not in context.test_users[name]:
-        logging.debug('___ subscribes to ___: initial subscription')
-        context.test_users[name]['subscriptions'] = {}
-        context.test_users[name]['subscriptions'][user_or_uri] = ('', '')
+    # context.test_users[name]['subscriptions'][0] is Call-ID
+    #                                          [1] is Proxy-Authenticate
+    #                                          [2] is To
+    logging.debug('___ subscribes to ___: initial subscription')
+    context.test_users[name]['subscriptions'] = {}
+    context.test_users[name]['subscriptions'][user_or_uri] = ('', '', '')
+
     subscribe_sub = support.sip_subscribe(context.test_users[name],
         context.test_users[user_or_uri]['sipuri'], req_uri,
         sockname=user_protocol.local_addr, event='presence', expires=1800,
         accept='multipart/related, application/rlmi+xml, application/pidf+xml')
 
-    # Call-ID & Proxy-Authenticate
-    if context.test_users[name]['subscriptions'][user_or_uri][0]:
-        subscribe_sub.field('CSeq').value = \
-            context.test_users[name]['subscriptions'][user_or_uri][0]
-    else:
-        context.test_users[name]['subscriptions'][user_or_uri] = \
-            (subscribe_sub.field('Call_ID').value,
-            context.test_users[name]['subscriptions'][user_or_uri][1])
-
-    # This is only for subscription renewal! Call-ID, To, Event must be the same
-    if context.test_users[name]['subscriptions'][user_or_uri][1]:
-        logging.debug('___ subscribes to ___: renewal')
-        subscribe_sub.hdr_fields.append(
-            hf.Proxy_Authorization(value=user_protocol.get_digest_auth(
-                context.test_users[name]['subscriptions'][user_or_uri][1],
-                subscribe_sub.method, context.test_users[name],
-                uri=sip_auth_uri)))
-        subscribe_sub.field('Call_ID').value = \
-            context.test_users[name]['subscriptions'][user_or_uri][0]
-
     subscribe_sub.field('CSeq').value = user_protocol.cseq_out_of_dialog
     user_protocol.sendto(subscribe_sub)
     response = await wait_for_response(user_protocol, [202, 407])
-
     rfields = hf.msg2fields(response)
+    # Call-ID & Proxy-Authenticate dialog creation
+    context.test_users[name]['subscriptions'][user_or_uri] = \
+        (subscribe_sub.field('Call_ID').value,
+        '',
+        rfields['To'])
+
     response_status = rfields['SIP/2.0'].split(maxsplit=1)[0]
     logging.debug('__ subscribes to __: response, status=%s', response_status)
+
     if response_status == '407':
         subscribe_auth = copy.copy(subscribe_sub)
         proxy_authenticate = rfields['Proxy-Authenticate']
         context.test_users[name]['subscriptions'][user_or_uri] = \
-            (context.test_users[name]['subscriptions'][user_or_uri][0], proxy_authenticate)
+            (subscribe_sub.field('Call_ID').value,
+            proxy_authenticate,
+            rfields['To'])
 
         logging.debug('challenge=%s, request_method=%s, userinfo:%s, uri=%s',
                 proxy_authenticate,
@@ -223,6 +217,52 @@ async def step_impl(context, name, user_or_uri):
         subscribe_auth.sort()
         user_protocol.sendto(subscribe_auth)
         await wait_for_response(user_protocol, [202])
+
+@then('"{name}" renews subscription with authentication to "{user_or_uri}"')
+@async_run_until_complete(async_context='udp_transport')
+async def step_impl(context, name, user_or_uri):
+    # user_or_uri is user name or full SIP URI
+    user_protocol = context.sip_xport[name][1]
+    assert 'subscriptions' in context.test_users[name]
+    assert context.test_users[name]['subscriptions'][user_or_uri]
+
+    if user_or_uri in context.test_users:
+        req_uri = context.test_users[user_or_uri]['sipuri']
+    else:
+        req_uri = user_or_uri
+    if 'sip_auth_uri' in context.test_users[name]:
+        sip_auth_uri = context.test_users[name]['sip_auth_uri']
+    else:
+        sip_auth_uri = f"sip:{context.test_users[name]['domain']}"
+
+    # RFC 3265 3.3.4, RFC 6665 4.4.1, Dialog creation and termination
+    # Dialog is Call-ID, To, and Event
+    # context.test_users[name]['subscriptions'][0] is Call-ID
+    #                                          [1] is Proxy-Authenticate
+    subscribe_sub = support.sip_subscribe(context.test_users[name],
+        context.test_users[user_or_uri]['sipuri'], req_uri,
+        sockname=user_protocol.local_addr, event='presence', expires=1800,
+        accept='multipart/related, application/rlmi+xml, application/pidf+xml')
+
+    # Call-ID & Proxy-Authenticate
+    subscribe_sub.field('Call_ID').value = \
+        context.test_users[name]['subscriptions'][user_or_uri][0]
+
+    logging.debug('___ subscribes to ___: renewal')
+    if context.test_users[name]['subscriptions'][user_or_uri][1]:
+        subscribe_sub.hdr_fields.append(
+            hf.Proxy_Authorization(value=user_protocol.get_digest_auth(
+                context.test_users[name]['subscriptions'][user_or_uri][1],
+                subscribe_sub.method, context.test_users[name],
+                uri=sip_auth_uri)))
+    subscribe_sub.field('Call_ID').value = \
+        context.test_users[name]['subscriptions'][user_or_uri][0]
+    subscribe_sub.field('To').from_string(
+        context.test_users[name]['subscriptions'][user_or_uri][2])
+
+    subscribe_sub.field('CSeq').value = user_protocol.cseq_out_of_dialog
+    user_protocol.sendto(subscribe_sub)
+    await wait_for_response(user_protocol, [202])
 
 @then('"{name}" unsubscribes from "{user_or_uri}"')
 @async_run_until_complete(async_context='udp_transport')
@@ -299,3 +339,8 @@ async def step_impl(context, name, state):
 @then('fail')
 def step_impl(context):
     assert False
+
+@then('"{user_name}" sets "{key}" to "{value}"')
+def step_impl(context, user_name, key, value):
+    assert user_name in context.test_users
+    context.test_users[user_name][key] = value
