@@ -212,7 +212,7 @@ def sip_refer(from_user:dict, to_user:dict,
     return refer
 
 # pylint: disable=R0913
-def sip_subscribe(from_user:dict, to_sipuri:dict, request_uri:str,
+def sip_subscribe(from_user:dict, to_sipuri:str, request_uri:str,
     sockname:tuple, event:str, accept:str, supported:str=None, expires:int=300, \
     call_id:str=None, user_agent='pysip/123456_DEADBEEFCAFE'):
     '''Create SUBSCRIBE request
