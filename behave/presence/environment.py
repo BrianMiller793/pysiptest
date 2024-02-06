@@ -60,6 +60,7 @@ async def unregister_user(context, name):
     user_protocol.start_unregistration()
     await user_protocol.wait
     user_protocol.wait = None
+    user_protocol.is_registered = False
 
 @fixture
 def udp_transport(context):

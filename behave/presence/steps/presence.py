@@ -15,18 +15,20 @@ from asyncio import sleep
 import copy
 import logging
 from assertpy import assert_that
+
 # pylint: disable=E0401,E0102,C0413
 from pysiptest.rtpecho import RtpEcho
 from pysiptest.rtpplay import RtpPlay
-
 import pysiptest.headerfield as hf
 from pysiptest import sipmsg
 from pysiptest import support
-import publish_msg as psm
 
 from behave import given, then, step    # pylint: disable=E0611
 from behave.api.async_step import \
     async_run_until_complete, use_or_create_async_context
+
+import publish_msg as psm
+from mass_presence import ext2name
 
 # pylint: disable=W0613,C0116
 
@@ -54,13 +56,15 @@ async def wait_for_response(protocol, expected_codes):
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     assert 'udp_transport' in context
+    assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
-    user_protocol.wait = context.udp_transport.loop.create_future()
-    user_protocol.start_registration(expires=1800)
-    await user_protocol.wait
-    assert user_protocol.wait.result() is True
-    user_protocol.wait = None
-    assert user_protocol.is_registered
+    if not user_protocol.is_registered:
+        user_protocol.wait = context.udp_transport.loop.create_future()
+        user_protocol.start_registration(expires=1800)
+        await user_protocol.wait
+        assert user_protocol.wait.result() is True
+        user_protocol.wait = None
+        assert user_protocol.is_registered
 
 # INVITE sip:2001@teo SIP/2.0
 # SIP/2.0 100 Trying
@@ -182,7 +186,7 @@ async def step_impl(context, name, user_or_uri):
 
     subscribe_sub = support.sip_subscribe(context.test_users[name],
         context.test_users[user_or_uri]['sipuri'], req_uri,
-        sockname=user_protocol.local_addr, event='presence', expires=1800,
+        sockname=user_protocol.local_addr, event='presence', expires=120,
         accept='multipart/related, application/rlmi+xml, application/pidf+xml')
 
     subscribe_sub.field('CSeq').value = user_protocol.cseq_out_of_dialog
@@ -218,18 +222,25 @@ async def step_impl(context, name, user_or_uri):
         user_protocol.sendto(subscribe_auth)
         await wait_for_response(user_protocol, [202])
 
-@then('"{name}" renews subscription with authentication to "{user_or_uri}"')
+@then('"{name}" renews subscription with cached authentication to "{user_or_uri}" and expect "{expected_code}"')
 @async_run_until_complete(async_context='udp_transport')
-async def step_impl(context, name, user_or_uri):
+async def step_impl(context, name, user_or_uri, expected_code):
     # user_or_uri is user name or full SIP URI
     user_protocol = context.sip_xport[name][1]
     assert 'subscriptions' in context.test_users[name]
-    assert context.test_users[name]['subscriptions'][user_or_uri]
 
     if user_or_uri in context.test_users:
         req_uri = context.test_users[user_or_uri]['sipuri']
+        to_user_name = user_or_uri
     else:
         req_uri = user_or_uri
+        extension = user_or_uri[4:].split('@')[0]
+        print('extension={extension}')
+        to_user_name = context.test_users[ext2name(context, extension)]['name']
+
+    assert 'subscriptions' in context.test_users[name]
+    assert to_user_name in context.test_users[name]['subscriptions']
+
     if 'sip_auth_uri' in context.test_users[name]:
         sip_auth_uri = context.test_users[name]['sip_auth_uri']
     else:
@@ -240,29 +251,29 @@ async def step_impl(context, name, user_or_uri):
     # context.test_users[name]['subscriptions'][0] is Call-ID
     #                                          [1] is Proxy-Authenticate
     subscribe_sub = support.sip_subscribe(context.test_users[name],
-        context.test_users[user_or_uri]['sipuri'], req_uri,
-        sockname=user_protocol.local_addr, event='presence', expires=1800,
+        context.test_users[to_user_name]['sipuri'], req_uri,
+        sockname=user_protocol.local_addr, event='presence', expires=120,
         accept='multipart/related, application/rlmi+xml, application/pidf+xml')
 
     # Call-ID & Proxy-Authenticate
     subscribe_sub.field('Call_ID').value = \
-        context.test_users[name]['subscriptions'][user_or_uri][0]
+        context.test_users[name]['subscriptions'][to_user_name][0]
 
     logging.debug('___ subscribes to ___: renewal')
-    if context.test_users[name]['subscriptions'][user_or_uri][1]:
+    if context.test_users[name]['subscriptions'][to_user_name][1]:
         subscribe_sub.hdr_fields.append(
             hf.Proxy_Authorization(value=user_protocol.get_digest_auth(
-                context.test_users[name]['subscriptions'][user_or_uri][1],
+                context.test_users[name]['subscriptions'][to_user_name][1],
                 subscribe_sub.method, context.test_users[name],
                 uri=sip_auth_uri)))
     subscribe_sub.field('Call_ID').value = \
-        context.test_users[name]['subscriptions'][user_or_uri][0]
+        context.test_users[name]['subscriptions'][to_user_name][0]
     subscribe_sub.field('To').from_string(
-        context.test_users[name]['subscriptions'][user_or_uri][2])
+        context.test_users[name]['subscriptions'][to_user_name][2])
 
     subscribe_sub.field('CSeq').value = user_protocol.cseq_out_of_dialog
     user_protocol.sendto(subscribe_sub)
-    await wait_for_response(user_protocol, [202])
+    await wait_for_response(user_protocol, [int(expected_code)])
 
 @then('"{name}" unsubscribes from "{user_or_uri}"')
 @async_run_until_complete(async_context='udp_transport')
