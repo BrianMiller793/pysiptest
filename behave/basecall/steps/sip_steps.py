@@ -75,7 +75,7 @@ async def step_impl(context, caller, receiver):
     # Create RTP playback endpoint
     _, protocol = await context.udp_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(on_con_lost=None,
-            file_name='/home/bmiller/sipp_call.pcap',
+            file_name='sipp_call.pcap',
             loop=context.udp_transport.loop),
         local_addr=(context.test_host, 0)) # server mode
     user_protocol.rtp_endpoint = protocol

@@ -80,7 +80,7 @@ async def step_impl(context, caller, receiver):
     # Create RTP playback endpoint
     _, protocol = await context.udp_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(on_con_lost=None,
-            file_name='/home/bmiller/sipp_call.pcap',
+            file_name='sipp_call.pcap',
             loop=context.udp_transport.loop),
         local_addr=(context.test_host, 0)) # server mode
     user_protocol.rtp_endpoint = protocol
@@ -180,8 +180,9 @@ async def step_impl(context, name, user_or_uri):
     # context.test_users[name]['subscriptions'][0] is Call-ID
     #                                          [1] is Proxy-Authenticate
     #                                          [2] is To
-    logging.debug('___ subscribes to ___: initial subscription')
-    context.test_users[name]['subscriptions'] = {}
+    logging.debug('subscribes to: initial subscription')
+    if 'subscriptions' not in context.test_users[name]:
+        context.test_users[name]['subscriptions'] = {}
     context.test_users[name]['subscriptions'][user_or_uri] = ('', '', '')
 
     subscribe_sub = support.sip_subscribe(context.test_users[name],
@@ -192,23 +193,24 @@ async def step_impl(context, name, user_or_uri):
     subscribe_sub.field('CSeq').value = user_protocol.cseq_out_of_dialog
     user_protocol.sendto(subscribe_sub)
     response = await wait_for_response(user_protocol, [202, 407])
-    rfields = hf.msg2fields(response)
+    rfields = hf.HeaderFieldValues(response)
     # Call-ID & Proxy-Authenticate dialog creation
     context.test_users[name]['subscriptions'][user_or_uri] = \
         (subscribe_sub.field('Call_ID').value,
         '',
-        rfields['To'])
+        rfields.getfield('To')[0])
 
-    response_status = rfields['SIP/2.0'].split(maxsplit=1)[0]
-    logging.debug('__ subscribes to __: response, status=%s', response_status)
+    response_status = rfields.getfield('SIP/2.0')[0].split(maxsplit=1)[0]
+    logging.debug('subscribes to: response, status=%s', response_status)
 
     if response_status == '407':
         subscribe_auth = copy.copy(subscribe_sub)
-        proxy_authenticate = rfields['Proxy-Authenticate']
+        # RFC 8760 -- there may be more than one Authenticate
+        proxy_authenticate = rfields.getfield('Proxy-Authenticate')[0]
         context.test_users[name]['subscriptions'][user_or_uri] = \
             (subscribe_sub.field('Call_ID').value,
             proxy_authenticate,
-            rfields['To'])
+            rfields.getfield('To')[0])
 
         logging.debug('challenge=%s, request_method=%s, userinfo:%s, uri=%s',
                 proxy_authenticate,
@@ -221,8 +223,11 @@ async def step_impl(context, name, user_or_uri):
         subscribe_auth.sort()
         user_protocol.sendto(subscribe_auth)
         await wait_for_response(user_protocol, [202])
+    assert user_or_uri in \
+            context.test_users[name]['subscriptions']
+    logging.debug('subscribes to: keys=%s', str(context.test_users[name]['subscriptions'].keys()))
 
-@then('"{name}" renews subscription with cached authentication to "{user_or_uri}" and expect "{expected_code}"')
+@then('"{name}" renews subscription with cached authentication to "{user_or_uri}" and expect "{expected_code}"') # pylint: disable=C0301
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name, user_or_uri, expected_code):
     # user_or_uri is user name or full SIP URI
@@ -278,6 +283,8 @@ async def step_impl(context, name, user_or_uri, expected_code):
 @then('"{name}" unsubscribes from "{user_or_uri}"')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name, user_or_uri):
+    assert user_or_uri in \
+            context.test_users[name]['subscriptions']
     user_protocol = context.sip_xport[name][1]
     # For unsubscribe, always use the extension and the UC URI
     server = context.test_servers[context.test_users[name]['server']]
@@ -294,18 +301,19 @@ async def step_impl(context, name, user_or_uri):
     user_protocol.sendto(presence_unsub)
     response = await wait_for_response(user_protocol, [202, 407])
 
-    rfields = hf.msg2fields(response)
-    response_status = rfields['SIP/2.0'].split(maxsplit=1)[0]
-    logging.debug('__ subscribes to __: response, status=%s', response_status)
+    rfields = hf.HeaderFieldValues(response)
+    response_status = rfields.getfield('SIP/2.0')[0].split(maxsplit=1)[0]
+    logging.debug('__ unsubscribes from __: response, status=%s', response_status)
+    # RFC 8760 - there may be more than one authenticate
     if response_status == '407':
         unsub_auth = copy.copy(presence_unsub)
         sip_auth_uri = f"sip:{context.test_users[name]['domain']}"
         logging.debug('challenge=%s, request_method=%s, userinfo:%s, uri=%s',
-                rfields['Proxy-Authenticate'],
+                rfields.getfield('Proxy-Authenticate')[0],
                 unsub_auth.method, str(context.test_users[name]), sip_auth_uri)
         unsub_auth.hdr_fields.append(
             hf.Proxy_Authorization(value=user_protocol.get_digest_auth(
-                rfields['Proxy-Authenticate'],
+                rfields.getfield('Proxy-Authenticate')[0],
                 unsub_auth.method, context.test_users[name], uri=sip_auth_uri)))
         unsub_auth.field('CSeq').value = user_protocol.cseq_out_of_dialog
         unsub_auth.sort()
@@ -314,6 +322,7 @@ async def step_impl(context, name, user_or_uri):
 
 @then('"{subscriber}" has received "{state}" notification for "{source}"')
 def step_impl(context, subscriber, state, source):
+    assert source in context.test_users[subscriber]['subscriptions']
     user_protocol = context.sip_xport[subscriber][1]
     source_addr = context.test_users[source]['sipuri']
     notifications = [ m for m in user_protocol.get_rcvd('NOTIFY')
@@ -343,9 +352,9 @@ async def step_impl(context, name, state):
     user_protocol.sendto(publish)
 
     response = await wait_for_response(user_protocol, [200])
-    rfields = hf.msg2fields(response)
-    assert_that(rfields).described_as('PUBLISH response').contains('SIP-ETag')
-    context.SIP_ETag = rfields['SIP-ETag']
+    rfields = hf.HeaderFieldValues(response)
+    assert_that(rfields.field_names).described_as('PUBLISH response').contains('SIP-ETag')
+    context.SIP_ETag = rfields.getfield('SIP-ETag')[0]
 
 @then('fail')
 def step_impl(context):

@@ -4,20 +4,19 @@
 from asyncio import sleep
 import copy
 import logging
-import os
-import sys
-from behave import given, then    # pylint: disable=E0611
-from behave.api.async_step import \
-    async_run_until_complete, use_or_create_async_context
-from assertpy import assert_that
 
 # pylint: disable=E0401,E0102,C0413
 from pysiptest.rtpecho import RtpEcho
 from pysiptest.rtpplay import RtpPlay
 
 import pysiptest.headerfield as hf
-import pysiptest.sipmsg as sipmsg
-import pysiptest.support as support
+from pysiptest import sipmsg
+from pysiptest import support
+
+from assertpy import assert_that
+from behave import given, then, step    # pylint: disable=E0611
+from behave.api.async_step import \
+    async_run_until_complete, use_or_create_async_context
 
 # pylint: disable=W0613,C0116
 
@@ -107,18 +106,18 @@ async def step_impl(context, receiver, caller, park_ext):
     user_protocol = context.sip_xport[receiver][1]
     prev_ack = user_protocol.get_prev_rcvd('ACK')
     assert prev_ack is not None
-    pa_fields = hf.msg2fields(prev_ack)
-    req_uri = pa_fields['Contact'].strip('<>')
+    pa_fields = hf.HeaderFieldValues(prev_ack)
+    req_uri = pa_fields.getfield('Contact')[0].strip('<>')
     park_invite = support.sip_invite(
         user_protocol.local_addr,
         context.test_users[receiver],
         context.test_users[caller],
         user_protocol.rtp_endpoint.local_addr,
         request_uri=req_uri)
-    park_invite.field('From').tag = pa_fields['To'].split('=')[-1]
-    park_invite.field('To').tag = pa_fields['From'].split('=')[-1]
+    park_invite.field('From').tag = pa_fields.getfield('To')[0].split('=')[-1]
+    park_invite.field('To').tag = pa_fields.getfield('From')[0].split('=')[-1]
     park_invite.field('CSeq').value = user_protocol.cseq_in_dialog
-    park_invite.field('Call_ID').value = pa_fields['Call-ID']
+    park_invite.field('Call_ID').value = pa_fields.getfield('Call-ID')[0]
     park_invite.field('Contact').from_string(
         f'<sip:{user_protocol.user_info["extension"]}@{user_protocol.local_addr[0]}:{user_protocol.local_addr[1]}>')
 
@@ -150,9 +149,9 @@ async def step_impl(context, receiver, caller, park_ext):
         to_user=context.test_users[caller],
         sockname=user_protocol.local_addr, park_ext=park_ext,
         request_uri=req_uri)
-    park_refer.field('From').tag = pa_fields['To'].split('=')[-1]
-    park_refer.field('To').tag = pa_fields['From'].split('=')[-1]
-    park_refer.field('Call_ID').value = pa_fields['Call-ID']
+    park_refer.field('From').tag = pa_fields.getfield('To')[0].split('=')[-1]
+    park_refer.field('To').tag = pa_fields.getfield('From')[0].split('=')[-1]
+    park_refer.field('Call_ID').value = pa_fields.getfield('Call-ID')[0]
     park_refer.field('CSeq').value = user_protocol.cseq_in_dialog
     user_protocol.sendto(park_refer)
 
