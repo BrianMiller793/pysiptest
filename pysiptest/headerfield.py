@@ -38,6 +38,45 @@ COMPACT_NAMES = {
     'r': 'Refer_To',
 }
 
+class HeaderFieldValues():
+    '''Dictionary-like object for SIP header fields.
+    Fields may appear more than once, with different values.'''
+
+    def __init__(self, sip_msg=None):
+        self._fields = []
+        self._names = []
+        if sip_msg:
+            self.msg2fields(sip_msg)
+
+    @property
+    def field_names(self) -> list:
+        '''Get list of header field names.'''
+        return self._names
+
+    def getfield(self, field_name:str) -> list:
+        '''Get header fields matching field name.'''
+
+        return [fnv[1] for fnv in self._fields if fnv[0] == field_name]
+
+    def msg2fields(self, sipmsg:str) -> list:
+        """Split SIP message into field-value dictionary. Additional
+        data after header fields is in 'Body'."""
+        # Use takewhile to split the message until an empty line
+        # between fields and body
+        line_iter = itertools.takewhile(lambda x : len(x), sipmsg.splitlines())
+        lines = list(line_iter)
+
+        # Convert list to array, cleaning up keys and values
+        self._fields = [
+            (hf.split(' ', 1)[0].rstrip(': '), hf.split(' ', 1)[1].strip())
+            for hf in lines]
+
+        content_length = int(self.getfield('Content-Length')[0])
+        if content_length:
+            self._fields.append(('Body', sipmsg[len(sipmsg)-content_length:]))
+
+        self._names = [fvp[0] for fvp in self._fields]
+
 def __get_subclasses():
     """Get all subclasses of HeaderField."""
     return inspect.getmembers(sys.modules[__name__],
@@ -573,7 +612,7 @@ class Contact(HeaderField):
         self._to_string()
 
     def __str__(self):
-        return "{}: {}".format(
+        return "{}: {}".format(     # pylint: disable=C0209
             self._shortname if self.use_compact else self._longname,
             self.value)
 

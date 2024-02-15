@@ -6,15 +6,16 @@ Behave steps to for Feature: Registration, RFC 3665, Section 2
 from asyncio import sleep
 import copy
 import logging
-from behave import given, when, then # pylint: disable=E0611
-from behave.api.async_step import async_run_until_complete
 from assertpy import assert_that
-
-# pylint: disable=E0401,C0413,C0116,E0102
 
 import pysiptest.headerfield as hf
 from pysiptest import sipmsg
 from pysiptest.support import sip_register
+
+from behave import given, when, then # pylint: disable=E0611
+from behave.api.async_step import async_run_until_complete
+
+# pylint: disable=E0401,C0413,C0116,E0102,C0301
 
 def get_digest_auth(sip_digest_auth, challenge:str, request_method:str, userinfo:dict, uri:str=None):
     '''Create response to challenge WWW-Authenticate or Proxy-Authenticate.
@@ -97,10 +98,11 @@ def step(context):
 def step(context, user_name):
     assert context.pending_msg is not None
     assert len(context.sip_xport[user_name][1].recvd_pkts) > 0
-    sip_dict = hf.msg2fields(context.sip_xport[user_name][1].recvd_pkts[-1])
-    assert 'WWW-Authenticate' in sip_dict.keys()
-    www_authenticate = sip_dict['WWW-Authenticate']
-    sip_request = sip_dict['CSeq'].split()[-1] # Request name is in CSeq
+    sip_dict = hf.HeaderFieldValues(context.sip_xport[user_name][1].recvd_pkts[-1])
+    assert 'WWW-Authenticate' in sip_dict.field_names
+    # RFC 8760 -- There may be more than one WWW-Authenticate
+    www_authenticate = sip_dict.getfield('WWW-Authenticate')[0]
+    sip_request = sip_dict.getfield('CSeq')[0].split()[-1] # Request name is in CSeq
     context.pending_msg.hdr_fields.append(
         hf.Authorization(value=\
             get_digest_auth(context.test_users[user_name]['digestauth'],
@@ -127,14 +129,14 @@ def step(context, user_name): # pylint: disable=W0613
 
 @then('"{user_name}" response contains "{field_name}" field, value "{field_value}"')
 def step(context, user_name, field_name, field_value): # pylint: disable=W0613
-    fields = hf.msg2fields(context.sip_xport[user_name][1].recvd_pkts[-1])
-    assert_that(fields).contains(field_name)
-    assert_that(fields[field_name]).contains(field_value)
+    fields = hf.HeaderFieldValues(context.sip_xport[user_name][1].recvd_pkts[-1])
+    assert_that(fields.field_names).contains(field_name)
+    assert_that(fields.getfield(field_name)[0]).contains(field_value)
 
 @then('"{user_name}" response does not contain field "{header_field}"')
 def step(context, user_name, header_field): # pylint: disable=W0613
-    fields = hf.msg2fields(context.sip_xport[user_name][1].recvd_pkts[-1])
-    assert_that(fields).does_not_contain(header_field)
+    fields = hf.HeaderFieldValues(context.sip_xport[user_name][1].recvd_pkts[-1])
+    assert_that(fields.field_names).does_not_contain(header_field)
 
 @when('"{user_name}" Contact field port is set to {portnum}')
 def step(context, user_name, portnum):
@@ -162,5 +164,5 @@ async def step(context, user_name, method):
 
 @then('pause for {pause} seconds')
 @async_run_until_complete(async_context='udp_datagram')
-async def step(context, pause):
+async def step(context, pause): # pylint: disable=W0613
     await sleep(int(pause))

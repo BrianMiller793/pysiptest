@@ -14,9 +14,9 @@ from pysiptest import sipmsg
 
 def rtp_sockname_from_sdp(sip_msg:str) -> tuple:
     '''Construct sockname from SDP message.'''
-    fields = hf.msg2fields(sip_msg)
-    assert 'sdp' in fields['Content-Type']
-    body = sip_msg[len(sip_msg) - int(fields['Content-Length']):]
+    fields = hf.HeaderFieldValues(sip_msg)
+    assert 'sdp' in fields.getfield('Content-Type')[0]
+    body = sip_msg[len(sip_msg) - int(fields.getfield('Content-Length')[0]):]
     sock_ip = hf.sdp_fields(body, 'c')[0][2:].split()[-1]
     sock_addr = int(hf.sdp_fields(body, 'm')[0][2:].split()[1])
     return (sock_ip, sock_addr)
@@ -126,13 +126,13 @@ class SipPhoneUdpClient:
         sip_msg = data.decode()
         logging.debug('SipPhoneUdpClient:datagram_received: sip_msg=%s', sip_msg)
         self.recvd_pkts.append(copy.copy(sip_msg))
-        sip_fields = hf.msg2fields(sip_msg)
-        if sip_fields['Call-ID'] in self.state_callback:
-            callback = self.state_callback.pop(sip_fields['Call-ID'])
+        sip_fields = hf.HeaderFieldValues(sip_msg)
+        if sip_fields.getfield('Call-ID')[0] in self.state_callback:
+            callback = self.state_callback.pop(sip_fields.getfield('Call-ID')[0])
             assert hasattr(callback, '__call__')
             logging.debug(
                 'SipPhoneUdpClient:datagram_received:callback=%s, Call-ID=%s',
-                callback.__name__, sip_fields['Call-ID'])
+                callback.__name__, sip_fields.getfield('Call-ID')[0])
             callback(sip_msg)
         else:
             self.rcv_queue.put_nowait(copy.copy(sip_msg))
@@ -173,13 +173,13 @@ class RegisterUnregister(SipPhoneUdpClient):
         assert isinstance(sip_msg, str)
         assert self.user_info is not None
         # The message *should* be a 401 or 407
-        sip_fields = hf.msg2fields(sip_msg)
-        assert 'WWW-Authenticate' in sip_fields.keys()
+        sip_fields = hf.HeaderFieldValues(sip_msg)
+        assert 'WWW-Authenticate' in sip_fields.field_names
 
         register = self.get_prev_sent('REGISTER')
         register.hdr_fields.append(
             hf.Authorization(value=self.get_digest_auth(
-                sip_fields['WWW-Authenticate'], register.method,
+                sip_fields.getfield('WWW-Authenticate')[0], register.method,
                 self.user_info)))
         register.field('CSeq').value = self.cseq_out_of_dialog
         register.sort()
@@ -253,8 +253,9 @@ class KeepAlive(RegisterUnregister):
 
     def datagram_received(self, data, addr):    # pylint: disable=W0613
         '''Datagram Protocol: intercept OK from UAS.'''
-        msg_dict = hf.msg2fields(data.decode())
-        if self.branch is None or self.branch not in msg_dict['Via']:
+        msg_dict = hf.HeaderFieldValues(data.decode())
+        if self.branch is None or \
+                self.branch not in msg_dict.getfield('Via')[0]:
             logging.debug('KeepAlive:datagram_received')
             super().datagram_received(data, addr)
 
@@ -318,16 +319,16 @@ class AutoAnswer(AutoReply):
         '''Process datagram for INVITE or ACK.'''
         sip_msg = data.decode()
         method = sip_msg.split(maxsplit=1)[0]
-        fields = hf.msg2fields(sip_msg)
+        fields = hf.HeaderFieldValues(sip_msg)
         logging.debug('AutoAnswer:datagram_received:method=%s', method)
         if method == 'INVITE':
             if 'call_id' not in self.dialog:
-                self.dialog['call_id'] = fields['Call-ID']
+                self.dialog['call_id'] = fields.getfield('Call-ID')[0]
             if 'contact' not in self.dialog:
-                self.dialog['contact'] = fields['Contact'].strip('<>')
-            self.state_callback[fields['Call-ID']] = self.answer_invite
+                self.dialog['contact'] = fields.getfield('Contact')[0].strip('<>')
+            self.state_callback[fields.getfield('Call-ID')[0]] = self.answer_invite
         if method == 'BYE':
-            self.state_callback[fields['Call-ID']] = self.bye_dialog
+            self.state_callback[fields.getfield('Call-ID')[0]] = self.bye_dialog
 
         super().datagram_received(data, addr)
 
@@ -433,16 +434,17 @@ class AutoAnswer(AutoReply):
     def dial_100trying(self, sip_msg:str):
         '''State machine callback for 100 Trying.'''
         logging.debug('AutoAnswer:dial_100trying')
-        fields = hf.msg2fields(sip_msg)
-        self.state_callback[fields['Call-ID']] = self.dial_callback
+        fields = hf.HeaderFieldValues(sip_msg)
+        self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
 
     def dial_407proxy_auth_req(self, sip_msg:str):
         '''State machine callback for 407 Proxy Authentication Required.'''
         logging.debug('AutoAnswer:dial_407proxy_auth_req')
-        sip_fields = hf.msg2fields(sip_msg)
-        assert 'Proxy-Authenticate' in sip_fields.keys()
+        sip_fields = hf.HeaderFieldValues(sip_msg)
+        # RFC 8760 - there may be more than one authenticate
+        assert 'Proxy-Authenticate' in sip_fields.field_names
         # send ACK for 407
-        to_field = sip_fields['To']
+        to_field = sip_fields.getfield('To')[0]
         req_uri = to_field[to_field.find('<')+1 : to_field.find('>')]
         auth_ack = support.sip_ack(sip_msg, self.user_info,
             self.local_addr, req_uri=req_uri)
@@ -455,7 +457,7 @@ class AutoAnswer(AutoReply):
 
         invite.hdr_fields.append(
             hf.Proxy_Authorization(value=self.get_digest_auth(
-                sip_fields['Proxy-Authenticate'],
+                sip_fields.getfield('Proxy-Authenticate')[0],
                 invite.method, self.user_info, uri=self.user_info['sipuri'])))
         invite.field('CSeq').value = self.cseq_out_of_dialog
         invite.sort()
@@ -466,8 +468,8 @@ class AutoAnswer(AutoReply):
     def dial_180ringing(self, sip_msg:str):
         '''State machine callback for 180 Ringing.'''
         logging.debug('AutoAnswer:dial_180ringing')
-        fields = hf.msg2fields(sip_msg)
-        self.state_callback[fields['Call-ID']] = self.dial_callback
+        fields = hf.HeaderFieldValues(sip_msg)
+        self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
 
     def dial_200ok(self, sip_msg:str):
         '''State machine callback for 200 OK w/SDP, respond with ACK'''
@@ -477,10 +479,10 @@ class AutoAnswer(AutoReply):
         self.rtp_endpoint.dest_addr = rtp_sock
         self.rtp_endpoint.begin()
 
-        fields = hf.msg2fields(sip_msg)
-        self.dialog['req_uri'] = fields['Contact'].strip('<>')
+        fields = hf.HeaderFieldValues(sip_msg)
+        self.dialog['req_uri'] = fields.getfield('Contact')[0].strip('<>')
         logging.debug('AutoAnswer:dial_200ok:dialog:req_uri=%s', self.dialog['req_uri'])
-        self.dialog['uas_tag'] = fields['To'].split(';')[-1].split('=')[-1]
+        self.dialog['uas_tag'] = fields.getfield('To')[0].split(';')[-1].split('=')[-1]
         logging.debug('AutoAnswer:dial_200ok:dialog_tag=%s', self.dialog['uas_tag'])
 
         # Send ACK

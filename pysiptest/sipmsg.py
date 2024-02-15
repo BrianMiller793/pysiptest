@@ -66,13 +66,13 @@ class SipMessage():
     def init_from_msg(self, prevmsg:str):
         """ Initialize values based on previous message. """
         assert isinstance(prevmsg, str)
-        msg_dict = hf.msg2fields(prevmsg)
+        msg_fvp = hf.HeaderFieldValues(prevmsg)
         if len(self.hdr_fields) == 0:
             self.init_mandatory()
         for hfield in self.hdr_fields:
             msg_field_name = hfield.__class__.__name__.replace('_', '-')
-            if msg_field_name in msg_dict.keys():
-                hfield.from_string(msg_dict[msg_field_name])
+            if msg_field_name in msg_fvp.field_names:
+                hfield.from_string(msg_fvp.getfield(msg_field_name)[0])
 
         self.field('Content_Length').value = 0
 
