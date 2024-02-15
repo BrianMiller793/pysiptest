@@ -8,7 +8,7 @@ import os
 import random
 
 import pysiptest.headerfield as hf
-import pysiptest.sipmsg as sipmsg
+from pysiptest import sipmsg
 
 def sip_sdp(owner, sockname=None, network='IN IP4') -> str:
     '''Create SDP info
@@ -179,13 +179,34 @@ def sip_options(userinfo:dict, addr:tuple,
     return options
 
 def sip_refer(from_user:dict, to_user:dict,
-    sockname:tuple, park_ext:str, request_uri:str, \
+    sockname:tuple, refer_to:str, request_uri:str, \
     user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
-    '''Create REFER request'''
+    '''Create REFER request. RFC 3515. REFER handled same as BYE.
+
+    :param from_user: Context test_user
+    :param to_user: string
+    :param sockname: Local SIP socket address tuple
+    :param refer_to: Section 2.1, examples governed by SIP msg flow.
+    :param request_uri: May be address of UC, or To: URI address.
+    :param user_agent:
+    '''
+    # Alice dials Hunt
+    # Bob picks up Hunt
+    # Bob transfers to Charlie
+    #   Bob invites Charlie
+    #   Charlie picks up
+    #   Bob REFER to Charlie on Hunt
+    # Fanvil:
+    # <sip:1002@teo?
+    #      Replaces=230711715225292-215582680159797@192.168.0.196:
+    #      to-tag=06HUU31Sa1e7c:
+    #      from-tag=1970457965>
+    # <sip:Dest@Realm?Replaces=NewCallID@UAC_IP:to-tag=NewTag:from-tag=NewTag>
+    # Then enocde
     assert isinstance(from_user, dict)
-    assert isinstance(to_user, dict)
+    assert isinstance(to_user, str)
     assert isinstance(sockname, tuple)
-    assert isinstance(park_ext, str)
+    assert isinstance(refer_to, str)
     assert isinstance(request_uri, str)
 
     refer = sipmsg.Refer(request_uri=request_uri, transport='UDP')
@@ -200,7 +221,7 @@ def sip_refer(from_user:dict, to_user:dict,
     refer.field('Contact').from_string(
         f'<sip:{from_user["extension"]}@{sockname[0]}:{sockname[1]}>')
     refer.field('CSeq').method = refer.method
-    refer.field('Refer_To').value = park_ext
+    refer.field('Refer_To').value = refer_to
     refer.field('Referred_By').value = \
         str(refer.field('Contact')).split(maxsplit=1)[-1]
     refer.hdr_fields.append(hf.Event(value='refer'))

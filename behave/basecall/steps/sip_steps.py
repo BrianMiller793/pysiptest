@@ -19,6 +19,8 @@ from assertpy import assert_that
 from pysiptest.rtpecho import RtpEcho
 from pysiptest.rtpplay import RtpPlay
 from pysiptest import sipmsg
+from pysiptest import headerfields as hf
+from pysiptest import support
 
 from behave import given, then, step    # pylint: disable=E0611
 from behave.api.async_step import \
@@ -87,6 +89,22 @@ async def step_impl(context, caller, receiver):
     assert_that(user_protocol.wait.result())\
         .described_as('__ calls __').is_true()
     user_protocol.wait = None
+
+@then('"{from_name}" transfers to "{to_name}"')
+def step_impl(context, from_name, to_name):
+    '''REFER transfers call to another extension.'''
+    # SIP flow from Fir
+    # In dialog with UC via Hunt or ACD
+    # INVITE to dest
+    # After 183, send REFER
+    user_protocol = context.sip_xport[from_name][1]
+    call_id = context.dialog['call_id']
+
+#    refer_msg = support.refer(
+#
+#    replaced_call = f"{str(uuid.uuid4())}@{sockname[0]}:to-tag={hf.gen_tag()}:from-tag={hf.gen_tag()}"
+#    replaces_encoded = urllib.parse.quote(replaces,
+#            safe='/', encoding=None, errors=None)
 
 @step('"{name}" waits for a call')
 @async_run_until_complete(async_context='udp_transport')
