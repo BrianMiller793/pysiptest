@@ -72,18 +72,19 @@ def udp_transport(context):
     async_context = use_or_create_async_context(context, 'udp_transport')
 
     # Create the task for the client
-    for user_name in td.TEST_USERS:
-        logging.debug('fixture udp_transport, user_name=%s', user_name)
+    for user in [u for u in td.TEST_USERS.values()
+            if u['password'] is not None]:
+        logging.debug('fixture udp_transport, user=%s', user['name'])
         task = async_context.loop.create_task(
             init_transport(context, async_context,
-                user_name, td.TEST_USERS[user_name]))
+                user['name'], user))
         async_context.loop.run_until_complete(task)
     assert hasattr(context, 'sip_xport')
 
     yield getattr(context, 'sip_xport')
     logging.debug('udp_transport sip_xport.keys=%s', context.sip_xport.keys())
-    for key in context.sip_xport:
-        context.sip_xport[key][0].close()
+    for xport in context.sip_xport.values():
+        xport[0].close()
 
 @fixture
 def test_host(context):
@@ -116,7 +117,7 @@ def import_init_transport(context, import_file_name):
                 'name': row['username'],
                 'extension': row['listedPhoneNumber'],
                 'sipuri': f'sip:{row["listedPhoneNumber"]}@teo',
-                'password': td.PASSWORD_UCM,
+                'password': td.PASSWORD_DEFAULT,
                 'server': 'Docker',
                 'transport': AutoAnswer}
 
@@ -153,8 +154,9 @@ def before_feature(context, feature): # pylint: disable=W0613
 def after_feature(context, feature):
     '''Unregister users after feature completed.'''
     async_context = use_or_create_async_context(context, 'udp_transport')
-    for user_name in td.TEST_USERS:
-        logging.debug('fixture udp_transport, user_name=%s', user_name)
+    for user in [u['name'] for u in td.TEST_USERS.values()
+            if u['password'] is not None]:
+        logging.debug('after_feature, user=%s', user)
         task = async_context.loop.create_task(
-            unregister_user(context, user_name))
+            unregister_user(context, user))
         async_context.loop.run_until_complete(task)

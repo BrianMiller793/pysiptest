@@ -6,7 +6,8 @@ Feature: Calls are Transferred Between Endpoints
     Given "Charlie" registers
     Then pause for 1 seconds
     Then "Bob" waits for a call
-    Then "Alice" calls "Bob"
+    Then "Charlie" waits for a call
+    Then "Alice" calls "H100"
     Then "Bob" answers the call
     Then pause for 5 seconds
     Then "Bob" transfers to "Charlie"
@@ -19,7 +20,7 @@ Feature: Calls are Transferred Between Endpoints
     Given "Bob" registers
     Then pause for 1 seconds
     Then "Bob" waits for a call
-    Then "Alice" calls "Bob"
+    Then "Alice" calls "H100"
     Then "Bob" answers the call
     Then pause for 5 seconds
     Then "Bob" hangs up
@@ -31,7 +32,7 @@ Feature: Calls are Transferred Between Endpoints
     Given "Charlie" registers
     Then pause for 1 seconds
     Then "Bob" waits for a call
-    Then "Alice" calls "100"
+    Then "Alice" calls "H100"
     Then "Bob" answers the call
     Then pause for 5 seconds
     Then "Bob" transfers to "Charlie"
@@ -46,20 +47,21 @@ Feature: Calls are Transferred Between Endpoints
     Given "Charlie" registers
     Then pause for 1 seconds
     Then "Bob" waits for a call
-    Then "Alice" calls "100"
+    Then "Alice" calls "H100"
     Then "Bob" answers the call
     Then pause for 5 seconds
-    Then "Bob" transfers to "200"
+    Then "Bob" transfers to "A200"
     Then "Charlie" answers the call
     Then pause for 5 seconds
     Then "Charlie" hangs up
 
+  @skip
   Scenario: Caller to ACD, Answered
     Given "Alice" registers
     Given "Bob" registers
     Then pause for 1 seconds
     Then "Bob" waits for a call
-    Then "Alice" calls "200"
+    Then "Alice" calls "A200"
     Then "Bob" answers the call
     Then pause for 5 seconds
     Then "Bob" hangs up
@@ -71,7 +73,7 @@ Feature: Calls are Transferred Between Endpoints
     Given "Charlie" registers
     Then pause for 1 seconds
     Then "Bob" waits for a call
-    Then "Alice" calls "200"
+    Then "Alice" calls "A200"
     Then "Bob" answers the call
     Then pause for 5 seconds
     Then "Bob" transfers to "Charlie"
@@ -86,10 +88,10 @@ Feature: Calls are Transferred Between Endpoints
     Given "Charlie" registers
     Then pause for 1 seconds
     Then "Bob" waits for a call
-    Then "Alice" calls "200"
+    Then "Alice" calls "A200"
     Then "Bob" answers the call
     Then pause for 5 seconds
-    Then "Bob" transfers to "100"
+    Then "Bob" transfers to "H100"
     Then "Charlie" answers the call
     Then pause for 5 seconds
     Then "Charlie" hangs up

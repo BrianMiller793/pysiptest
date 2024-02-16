@@ -178,7 +178,7 @@ def sip_options(userinfo:dict, addr:tuple,
     options.sort()
     return options
 
-def sip_refer(from_user:dict, to_user:dict,
+def sip_refer(from_user:dict, to_user:str,
     sockname:tuple, refer_to:str, request_uri:str, \
     user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
     '''Create REFER request. RFC 3515. REFER handled same as BYE.
@@ -190,19 +190,13 @@ def sip_refer(from_user:dict, to_user:dict,
     :param request_uri: May be address of UC, or To: URI address.
     :param user_agent:
     '''
-    # Alice dials Hunt
-    # Bob picks up Hunt
-    # Bob transfers to Charlie
-    #   Bob invites Charlie
-    #   Charlie picks up
-    #   Bob REFER to Charlie on Hunt
     # Fanvil:
     # <sip:1002@teo?
     #      Replaces=230711715225292-215582680159797@192.168.0.196:
     #      to-tag=06HUU31Sa1e7c:
     #      from-tag=1970457965>
     # <sip:Dest@Realm?Replaces=NewCallID@UAC_IP:to-tag=NewTag:from-tag=NewTag>
-    # Then enocde
+    # Then URI encode Replaces= data
     assert isinstance(from_user, dict)
     assert isinstance(to_user, str)
     assert isinstance(sockname, tuple)

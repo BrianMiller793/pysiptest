@@ -19,8 +19,7 @@ from assertpy import assert_that
 from pysiptest.rtpecho import RtpEcho
 from pysiptest.rtpplay import RtpPlay
 from pysiptest import sipmsg
-from pysiptest import headerfields as hf
-from pysiptest import support
+from pysiptest import headerfield as hf
 
 from behave import given, then, step    # pylint: disable=E0611
 from behave.api.async_step import \
@@ -90,17 +89,46 @@ async def step_impl(context, caller, receiver):
         .described_as('__ calls __').is_true()
     user_protocol.wait = None
 
-@then('"{from_name}" transfers to "{to_name}"')
-def step_impl(context, from_name, to_name):
+@then('"{from_name}" transfers to "{to_name_uri}"')
+@async_run_until_complete(async_context='udp_transport')
+async def step_impl(context, from_name, to_name_uri):
     '''REFER transfers call to another extension.'''
-    # SIP flow from Fir
-    # In dialog with UC via Hunt or ACD
-    # INVITE to dest
-    # After 183, send REFER
+    # Same flow as BYE, expect 202, then wait for BYE
+    # Refer-to may require encoding
+    assert to_name_uri in context.test_users
     user_protocol = context.sip_xport[from_name][1]
-    call_id = context.dialog['call_id']
+    refer_to = f"<{context.test_users[to_name_uri]['sipuri']}>"
 
-#    refer_msg = support.refer(
+    refer_msg = refer_from_ack(refer_to,
+            user_protocol.get_prev_rcvd('ACK'),
+            user_protocol)
+    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.sendto(refer_msg)
+    await user_protocol.wait
+    assert_that(user_protocol.wait.result()).described_as('refer').is_true()
+    user_protocol.wait = None
+
+def refer_from_ack(refer_to:str, ack_msg:str, user_protocol):
+    '''Create a REFER request from a previous received ACK'''
+    ack_hdrs = hf.HeaderFieldValues(ack_msg)
+    refer_msg = sipmsg.Refer(
+        request_uri=ack_hdrs.getfield('Contact')[0].strip('<>'),
+        transport='UDP')
+    refer_msg.init_mandatory()
+    refer_msg.field('Via').via_params['address'] = \
+            f"{user_protocol.local_addr[0]}:{user_protocol.local_addr[1]}"
+    refer_msg.field('Via').via_params['transport'] = refer_msg.transport
+    refer_msg.field('From').from_string(ack_hdrs.getfield('To')[0])
+    refer_msg.field('To').from_string(ack_hdrs.getfield('From')[0])
+    refer_msg.field('Call_ID').value = ack_hdrs.getfield('Call-ID')[0]
+    refer_msg.field('CSeq').method = refer_msg.method
+    refer_msg.field('CSeq').value = user_protocol.cseq_in_dialog
+    contact = f"<{ack_hdrs.getfield('ACK')[0].split()[0]}>"
+    refer_msg.field('Contact').value = contact
+    refer_msg.field('Referred_By').value = contact
+    refer_msg.field('Refer_To').value = refer_to
+    refer_msg.sort()
+    return refer_msg
 #
 #    replaced_call = f"{str(uuid.uuid4())}@{sockname[0]}:to-tag={hf.gen_tag()}:from-tag={hf.gen_tag()}"
 #    replaces_encoded = urllib.parse.quote(replaces,
