@@ -194,6 +194,7 @@ class RegisterUnregister(SipPhoneUdpClient):
         if 200 <= code < 300:
             self.is_registered = not self.is_registered
         # The user *should* be waiting on this.
+        logging.debug('registered: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
             self.wait.set_result(True)
 
@@ -203,6 +204,8 @@ class RegisterUnregister(SipPhoneUdpClient):
             'start_unregistration: userinfo.extension=%s is_registered=%s',
             self.user_info['extension'], str(self.is_registered))
         if not self.is_registered:
+            logging.debug('start_unregistration: self.wait= %s',
+                'None' if self.wait is None else 'not None')
             if self.wait is not None:
                 self.wait.set_result(True)
             return
@@ -382,6 +385,7 @@ class AutoAnswer(AutoReply):
         '''ACK state for received call'''
         logging.debug('AutoAnswer:answer_ack:Call-ID=%s', self.dialog['call_id'])
         self.in_a_call = True
+        logging.debug('answer_ack: self.wait= %s', 'None' if self.wait is None else 'not None')
         # The user *should* be waiting on this
         if self.wait is not None:
             try:
@@ -422,18 +426,48 @@ class AutoAnswer(AutoReply):
         code = sip_msg.split(maxsplit=2)[1]
         if code == '100':
             self.dial_100trying(sip_msg)
-        elif code == '407':
-            self.dial_407proxy_auth_req(sip_msg)
         elif code == '180':
             self.dial_180ringing(sip_msg)
+        elif code == '181':
+            self.dial_181forwarded(sip_msg)
+        elif code == '182':
+            self.dial_182queued(sip_msg)
+        elif code == '183':
+            self.dial_183sessionprogress(sip_msg)
         elif code == '200':
             self.dial_200ok(sip_msg)
+        elif code == '407':
+            self.dial_407proxy_auth_req(sip_msg)
         else:
             logging.error('AutoAnswer:dial_callback:received %s', code)
 
     def dial_100trying(self, sip_msg:str):
         '''State machine callback for 100 Trying.'''
         logging.debug('AutoAnswer:dial_100trying')
+        fields = hf.HeaderFieldValues(sip_msg)
+        self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
+
+    def dial_180ringing(self, sip_msg:str):
+        '''State machine callback for 180 Ringing.'''
+        logging.debug('AutoAnswer:dial_180ringing')
+        fields = hf.HeaderFieldValues(sip_msg)
+        self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
+
+    def dial_181forwarded(self, sip_msg:str):
+        '''State machine callback for 181 Call Is Being Fowarded.'''
+        logging.debug('AutoAnswer:dial_181forwarded')
+        fields = hf.HeaderFieldValues(sip_msg)
+        self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
+
+    def dial_182queued(self, sip_msg:str):
+        '''State machine callback for 182 Queued.'''
+        logging.debug('AutoAnswer:dial_182queued')
+        fields = hf.HeaderFieldValues(sip_msg)
+        self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
+
+    def dial_183sessionprogress(self, sip_msg:str):
+        '''State machine callback for 183 Session Progress.'''
+        logging.debug('AutoAnswer:dial_183sessionprogress')
         fields = hf.HeaderFieldValues(sip_msg)
         self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
 
@@ -465,12 +499,6 @@ class AutoAnswer(AutoReply):
         self.state_callback[invite.field('Call_ID').value] = self.dial_callback
         self.sendto(invite)
 
-    def dial_180ringing(self, sip_msg:str):
-        '''State machine callback for 180 Ringing.'''
-        logging.debug('AutoAnswer:dial_180ringing')
-        fields = hf.HeaderFieldValues(sip_msg)
-        self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
-
     def dial_200ok(self, sip_msg:str):
         '''State machine callback for 200 OK w/SDP, respond with ACK'''
         logging.debug('AutoAnswer:dial_200ok')
@@ -490,7 +518,9 @@ class AutoAnswer(AutoReply):
             req_uri=self.dialog['req_uri'])
         self.sendto(ack)
         # The user *should* be waiting on this.
+        logging.debug('dial_200ok: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
+            logging.debug('dial_200ok: wait.set_result(True)')
             self.wait.set_result(True)
 
     def hangup(self):
@@ -529,6 +559,7 @@ class AutoAnswer(AutoReply):
         logging.debug('AutoAnswer:bye_200ok')
         self.clear_endpoint()
         # The user *should* be waiting on this.
+        logging.debug('bye_200ok: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
             self.wait.set_result(True)
 
@@ -543,6 +574,7 @@ class AutoAnswer(AutoReply):
         # A user may, or may not, be waiting on the BYE.
         # This can happen in the background of a task, and the `wait` may
         # be None.
+        logging.debug('bye_dialog: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
             self.wait.set_result(True)
 

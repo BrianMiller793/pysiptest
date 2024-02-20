@@ -33,19 +33,19 @@ TEST_USERS = {
         'password': PASSWORD_DEFAULT,
         'server': 'Docker',
         'transport': AutoAnswer},
-    'A200': {
-        'domain': 'teo',
-        'name': 'A100',
-        'extension': '200',
-        'sipuri': 'sip:200@teo',
-        'password': None,
-        'server': 'Docker',
-        'transport': AutoAnswer},
     'H100': {
         'domain': 'teo',
         'name': 'H100',
         'extension': '100',
         'sipuri': 'sip:100@teo',
         'password': None,
-        'server': 'Docker',
-        'transport': AutoAnswer}}
+        'server': None,
+        'transport': None},
+    'A200': {
+        'domain': 'teo',
+        'name': 'A200',
+        'extension': '200',
+        'sipuri': 'sip:200@teo',
+        'password': None,
+        'server': None,
+        'transport': None}}

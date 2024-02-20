@@ -30,7 +30,8 @@ from behave.api.async_step import \
 
 async def wait_for_response(protocol, expected_codes):
     '''Wait for a response, and assert its value.'''
-    response = await protocol.rcv_queue.get()
+    if not protocol.wait.done():
+        response = await protocol.rcv_queue.get()
     while response is not None:
         logging.debug('wait_for_response: received %s', sipmsg.Response.get_code(response))
         code = int(sipmsg.Response.get_code(response))
@@ -39,7 +40,8 @@ async def wait_for_response(protocol, expected_codes):
         assert_that(code).described_as('response').is_less_than(300)
         if code >= 200:
             break
-        response = await protocol.rcv_queue.get()
+        if not protocol.wait.done():
+            response = await protocol.rcv_queue.get()
 
     assert_that(sipmsg.Response.get_code(response)).is_in(*expected_codes)
     return response
@@ -55,9 +57,11 @@ async def step_impl(context, name):
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
     if not user_protocol.is_registered:
+        logging.debug('registers %s: wait=loop.create_future()', name)
         user_protocol.wait = context.udp_transport.loop.create_future()
         user_protocol.start_registration(expires=1800)
-        await user_protocol.wait
+        if not user_protocol.wait.done():
+            await user_protocol.wait
         assert user_protocol.wait.result() is True
         user_protocol.wait = None
         assert user_protocol.is_registered
@@ -81,10 +85,12 @@ async def step_impl(context, caller, receiver):
         local_addr=(context.test_host, 0)) # server mode
     user_protocol.rtp_endpoint = protocol
 
+    logging.debug('calls %s, %s: wait=loop.create_future()', caller, receiver)
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.dial(context.test_users[receiver])
     # Wait for call to complete
-    await user_protocol.wait
+    if not user_protocol.wait.done():
+        await user_protocol.wait
     assert_that(user_protocol.wait.result())\
         .described_as('__ calls __').is_true()
     user_protocol.wait = None
@@ -102,9 +108,11 @@ async def step_impl(context, from_name, to_name_uri):
     refer_msg = refer_from_ack(refer_to,
             user_protocol.get_prev_rcvd('ACK'),
             user_protocol)
+    logging.debug('%s transfers to %s: wait=loop.create_future()', from_name, to_name_uri)
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.sendto(refer_msg)
-    await user_protocol.wait
+    if not user_protocol.wait.done():
+        await user_protocol.wait
     assert_that(user_protocol.wait.result()).described_as('refer').is_true()
     user_protocol.wait = None
 
@@ -129,15 +137,12 @@ def refer_from_ack(refer_to:str, ack_msg:str, user_protocol):
     refer_msg.field('Refer_To').value = refer_to
     refer_msg.sort()
     return refer_msg
-#
-#    replaced_call = f"{str(uuid.uuid4())}@{sockname[0]}:to-tag={hf.gen_tag()}:from-tag={hf.gen_tag()}"
-#    replaces_encoded = urllib.parse.quote(replaces,
-#            safe='/', encoding=None, errors=None)
 
-@step('"{name}" waits for a call')
+@step('"{name}" expects a call')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
+    logging.debug('waits for a call %s: wait=loop.create_future', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
     async_context = use_or_create_async_context(context, 'udp_transport')
     _, protocol = \
@@ -148,11 +153,16 @@ async def step_impl(context, name):
     user_protocol.rtp_endpoint = protocol
     # SipPhone state machine should now be primed for INVITE
 
-@then('"{receiver}" answers the call')
+@then('"{name}" answers the call')
 @async_run_until_complete(async_context='udp_transport')
-async def step_impl(context, receiver):
-    user_protocol = context.sip_xport[receiver][1]
-    await user_protocol.wait
+async def step_impl(context, name):
+    '''Step waits on Future object'''
+    user_protocol = context.sip_xport[name][1]
+    logging.debug('answers the call %s:wait= %s', name,
+        'None' if user_protocol.wait is None else 'not None')
+    if not user_protocol.wait.done():
+        logging.debug('answers the call %s:waiting', name)
+        await user_protocol.wait
     assert_that(user_protocol.wait.result())\
         .described_as('__ answers the call').is_true()
     user_protocol.wait = None
@@ -166,9 +176,11 @@ async def step_impl(context, time):
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
+    logging.debug('hangs up %s: wait=loop.create_future()', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.hangup()
-    await user_protocol.wait
+    if not user_protocol.wait.done():
+        await user_protocol.wait
     assert_that(user_protocol.wait.result())\
         .described_as('__ hangs up').is_true()
     user_protocol.wait = None
@@ -176,6 +188,7 @@ async def step_impl(context, name):
 @then('"{name}" starts waiting')
 def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
+    logging.debug('starts waiting %s: wait=loop.create_future()', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
 
 @then('"{name}" waits for hangup')
@@ -184,7 +197,8 @@ async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     assert_that(user_protocol.wait)\
         .described_as('__ waits for hangup:future').is_not_none()
-    await user_protocol.wait
+    if not user_protocol.wait.done():
+        await user_protocol.wait
     assert_that(user_protocol.wait.result())\
         .described_as('__ waits for hangup').is_true()
     user_protocol.wait = None
@@ -195,9 +209,11 @@ async def step_impl(context, name):
     assert 'udp_transport' in context
     user_protocol = context.sip_xport[name][1]
 
+    logging.debug('unregisters %s: wait=loop.create_future()', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.start_unregistration()
-    await user_protocol.wait
+    if not user_protocol.wait.done():
+        await user_protocol.wait
     assert_that(user_protocol.wait.result())\
         .described_as('__ unregisters').is_true()
     user_protocol.wait = None
