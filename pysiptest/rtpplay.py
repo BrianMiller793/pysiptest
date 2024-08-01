@@ -1,6 +1,8 @@
 # vim: ai ts=4 sw=4 et
 '''
 Datagram transport protocol, impementing echo for RTP.
+RFC 3550 - RTP: A Transport Protocol for Real-Time Applications
+RFC 1889 - obsoleted by 3550
 '''
 
 import asyncio
@@ -20,8 +22,8 @@ def short(sys_time):
 class RtpPlay:
     '''Base datagram transport protocol for replay of pcap file.'''
     # pylint: disable=R0902
-    def __init__(self, on_con_lost:asyncio.Future, file_name:str,
-        loop:asyncio.unix_events._UnixSelectorEventLoop):
+    def __init__(self, loop:asyncio.unix_events._UnixSelectorEventLoop,
+        on_con_lost:asyncio.Future=None, file_name:str=None):
         '''Class initialization.'''
         # on_con_lost: Future object for completion
         self.on_con_lost = on_con_lost
@@ -34,8 +36,10 @@ class RtpPlay:
         self.timestamp = 0
         self.dest_addr = None
         self.local_addr = None
+        self.is_playing = True
 
         # pylint: disable=R1732
+        assert self.file_name is not None
         self.pcap_file = open(self.file_name, mode='rb')
         self.pcap_rdr = dpkt.pcap.Reader(self.pcap_file)
         for _ in range(5):
@@ -43,6 +47,7 @@ class RtpPlay:
 
     def _read_rtp(self):
         '''Read an RTP packet from a pcap file.'''
+        # PCAP file may contain non-RTP packets
         found_rtp = False
         while not found_rtp:
             try:
@@ -76,6 +81,9 @@ class RtpPlay:
 
     def end(self):
         '''End RTP stream.'''
+        logging.debug('RtpPlay:end')
+        self.is_playing = False
+        self.transport.close()
         # Interface place holder.
 
     def connection_made(self, transport):
@@ -87,7 +95,9 @@ class RtpPlay:
     def connection_lost(self, exc):
         '''Base transport'''
         logging.debug('RtpPlay:connection_lost: %s', str(exc))
-        self.on_con_lost.set_result(True)
+        if self.on_con_lost:
+            self.on_con_lost.set_result(True)
+        self.is_playing = False
 
     def datagram_received(self, data, addr):
         '''Datagram transport'''
@@ -100,7 +110,7 @@ class RtpPlay:
 
     def callback_event(self):
         '''The callback sends data at roughly 20ms intervals.'''
-        if not self.rtp_queue.empty():
+        if not self.rtp_queue.empty() and self.is_playing:
             rtp_pkt = self.rtp_queue.get_nowait()
             rtp_pkt.ts = self.timestamp
             self.timestamp += 0xA0

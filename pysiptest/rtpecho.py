@@ -1,6 +1,8 @@
 # vim: ai ts=4 sw=4 et
 '''
 Datagram transport protocol, implementing echo for RTP.
+RFC 3550 - RTP: A Transport Protocol for Real-Time Applications
+RFC 1889 - obsoleted by 3550
 '''
 
 import asyncio
@@ -8,6 +10,7 @@ import logging
 
 class RtpEcho:
     '''Base datagram transport protocol for delayed echo.'''
+    # pylint: disable=R0902
     def __init__(self, loop:asyncio.unix_events._UnixSelectorEventLoop,
         on_con_lost:asyncio.Future=None):
         '''Class initialization.'''
@@ -39,7 +42,7 @@ class RtpEcho:
     def connection_lost(self, exc):
         '''Base transport'''
         logging.debug('RtpEcho:connection_lost: %s', str(exc))
-        if self.on_con_lost is not None:
+        if self.on_con_lost:
             self.on_con_lost.set_result(True)
 
     def datagram_received(self, data, addr): # pylint: disable=W0613
@@ -61,9 +64,9 @@ class RtpEcho:
         '''Error handler for protocol.'''
         logging.error('RtpEcho:error_received: %s', str(exc))
         self.error_count += 1
-#        if self.error_count > 50:
-#            logging.error('RtpEcho:error_received:closing')
-#            self.transport.close()
+        if self.error_count > 4:
+            logging.error('RtpEcho:error_received:closing')
+            self.transport.close()
 
     def callback_event(self):
         '''The callback sends data at roughly 20ms intervals.'''

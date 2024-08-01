@@ -37,7 +37,7 @@ class SipMessage():
     def field(self, field_name):
         """Return the field object by name, or None."""
         hdr_field = [f
-            for f in self.hdr_fields if f.__class__.__name__ == field_name]
+            for f in self.hdr_fields if f.__class__.__name__.rfind(field_name) != -1]
         return hdr_field[0] if len(hdr_field) == 1 else None
 
     @property
@@ -49,6 +49,8 @@ class SipMessage():
     def body(self, bvalue):
         '''Set the value of SIP message body.'''
         self._body = bvalue
+        #logging.debug('SipMessage %s', str(self.hdr_fields))
+        assert self.field('Content_Length') is not None
         self.field('Content_Length').value = len(bvalue)
 
     def init_valid(self):
@@ -74,6 +76,7 @@ class SipMessage():
             if msg_field_name in msg_fvp.field_names:
                 hfield.from_string(msg_fvp.getfield(msg_field_name)[0])
 
+        assert self.field('Content_Length') is not None
         self.field('Content_Length').value = 0
 
 class Rfc3261(SipMessage):

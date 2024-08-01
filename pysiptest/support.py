@@ -10,8 +10,8 @@ import random
 import pysiptest.headerfield as hf
 from pysiptest import sipmsg
 
-def sip_sdp(owner, sockname=None, network='IN IP4') -> str:
-    '''Create SDP info
+def sip_sdp(username, sockname=None) -> str:
+    '''Create SDP info, RFC 4566, Obsoletes: 2327, 3266
 
     :param owner: Domain, extension, user name, or manufacturer
     :param sockname: Tuple returned by getsockname()
@@ -22,11 +22,15 @@ def sip_sdp(owner, sockname=None, network='IN IP4') -> str:
     ipaddr = sockname[0]
     audio_port = sockname[1]
     random.seed()
-    session_id = random.randint(32768, 65535)
-    version = random.randint(32768, 65535)
+    # <username> is the user's login on the originating host, or it is "-"
+    session_id = random.randint(32768, 65535) # Unique
+    version = 0 # "This memo defines version 0."
+    # <nettype> : network
+    # <addrtype> : network
+    # <unicast-address> : sockname
 
     return f'''v=0
-o={owner} {session_id} {version} {network} {ipaddr}
+o={username} {session_id} {version} IN IP4 {ipaddr}
 s=A conversation
 c=IN IP4 {ipaddr}
 t=0 0
@@ -86,24 +90,28 @@ def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
     invite.init_mandatory()
     invite.field('CSeq').method = invite.method
     invite.field('CSeq').value = int.from_bytes(os.urandom(2), 'little')
+    invite.hdr_fields.append(hf.Session_Expires(value='1800'))
+    invite.hdr_fields.append(hf.Min_SE(value='1800'))
     invite.hdr_fields.append(hf.Content_Type(value='application/sdp'))
     invite.hdr_fields.append(hf.Content_Disposition(value='session'))
     invite.hdr_fields.append(hf.User_Agent(
         value=user_agent))
+
     invite.field('From').value = \
         f'{caller_info["name"]} <{caller_info["sipuri"]}>'
     invite.field('To').value = \
         f'{receiver_info["name"]} <{receiver_info["sipuri"]}>'
     invite.field('Via').via_params['transport'] = 'UDP'
     invite.field('Via').via_params['address'] = f'{sock_addr[0]}:{sock_addr[1]}'
-    invite.field('Supported').value = ''
+
+    invite.field('Supported').value = '199,timer'
     invite.body = sip_sdp(caller_info['name'], rtp_socket)
     invite.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     invite.sort()
     return invite
 
-def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None) \
+def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None, user_agent='pysip/123456_DEADBEEFCAFE') \
     -> sipmsg.SipMessage:
     '''Create ACK message'''
     assert isinstance(sdp_msg, str)
@@ -119,10 +127,11 @@ def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None) \
     ack.field('CSeq').method = 'ACK'
     ack.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    ack.hdr_fields.append(hf.User_Agent(value=user_agent))
     ack.sort()
     return ack
 
-def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None) -> sipmsg.SipMessage:
+def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None, user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
     '''Create BYE message
 
     :param sdp_msg: SDP message starting the call.
@@ -150,6 +159,7 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None) -> sipmsg.
     bye.field('Call_ID').value = sdp_dict['Call-ID']
     bye.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    bye.hdr_fields.append(hf.User_Agent(value=user_agent))
     bye.sort()
     return bye
 

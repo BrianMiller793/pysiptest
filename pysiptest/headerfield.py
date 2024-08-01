@@ -1939,7 +1939,7 @@ class Referred_By(HeaderField):
 #####################################################################
 # RFC 7329: Session Identifier for SIP (Obsoleted by 7989)
 # RFC 7989: End-to-End Session Identification
-# The RFCs for Session-ID define a more rules than can be contained
+# The RFCs for Session-ID define more rules than can be contained
 # in the current header architecture at this time.
 
 class Session_ID(HeaderField):
@@ -2039,3 +2039,72 @@ class SIP_If_Match(HeaderField):
     def ismandatory(msgtype, method):
         """Determine whether field is mandatory for the SIP message type."""
         return False
+
+#####################################################################
+# RFC 4028 -- Session Timers in the Session Initiation Protocol (SIP)
+
+class Session_Expires(HeaderField):
+    '''This extension defines a keepalive mechanism for SIP sessions.
+    UAs send periodic re-INVITE or UPDATE requests
+    (referred to as session refresh requests) to keep the session alive.'''
+    # Header field          where   proxy ACK BYE CAN INV OPT REG PRA UPD SUB NOT
+    # Session-Expires         R      amr   -   -   -   o   -   -   -   o   -   -
+    # Session-Expires        2xx     ar    -   -   -   o   -   -   -   o   -   -
+    # pylint: disable=C3001
+    _R = lambda nv, ov: nv
+    _2xx = lambda nv, ov: nv
+    where = (
+        ('R', 'INVITE', 'UPDATE', _2xx),
+        ((200, 299), 'INVITE', 'UPDATE', _2xx),
+        (None, None, None))
+
+    def __init__(self, value=None):
+        super().__init__(value)
+        self._shortname = "Session-Expires"
+        self._longname = "Session-Expires"
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        """Determine whether field is valid for the SIP message type."""
+        return Session_Expires.value_for_type(
+            Session_Expires.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        """Determine whether field is mandatory for the SIP message type."""
+        return False
+
+class Min_SE(HeaderField):
+    '''The Min-SE header field indicates the minimum value for the session
+    interval, in units of delta-seconds.'''
+    # Header field          where   proxy ACK BYE CAN INV OPT REG PRA UPD SUB NOT
+    # Min-SE                  R      amr   -   -   -   o   -   -   -   o   -   -
+    # Min-SE                 422           -   -   -   m   -   -   -   m   -   -
+    # pylint: disable=C3001
+    _R = lambda nv, ov: nv
+    _422 = lambda nv, ov: nv
+    where = (
+        ('R', 'INVITE', 'UPDATE', _R),
+        (None, None, None))
+    mandatory = (
+        (422, 'INVITE', 'UPDATE', _422),
+        (None, None, None))
+
+    def __init__(self, value=None):
+        super().__init__(value)
+        self._shortname = "Min-SE"
+        self._longname = "Min-SE"
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        """Determine whether field is valid for the SIP message type."""
+        return Min_SE.value_for_type(
+            Min_SE.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        """Determine whether field is mandatory for the SIP message type."""
+        return Min_SE.value_for_type(
+            Min_SE.mandatory, msgtype, method, True) is not None

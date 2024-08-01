@@ -45,6 +45,7 @@ class SipPhoneUdpClient:
         self._cseq_out_of_dialog = 0
         self.local_addr = None              # sockname of SIP client
         self.sip_digest_auth = SipDigestAuth() # Create digest authentication
+        self.user_agent = 'pysip/123456_DEADBEEFCAFE'
 
     @property
     def cseq_in_dialog(self):
@@ -289,6 +290,7 @@ class AutoReply(KeepAlive):
             response = sipmsg.Response(status_code=200, reason_phrase='OK')
             response.method = sip_method
             response.init_from_msg(sip_msg)
+            response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
             response.sort()
             self.sendto(response)
             return
@@ -349,10 +351,12 @@ class AutoAnswer(AutoReply):
         #  To: UAC user <sip:ext@dom>
         logging.debug('AutoAnswer:answer_invite:INVITE')
         self.dialog['req_uri'] = sip_msg.split(maxsplit=2)[1]
+        self.rtp_endpoint.dest_addr = rtp_sockname_from_sdp(sip_msg)
 
         logging.debug('AutoAnswer:answer_invite:sending:Trying')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='100', reason_phrase='Trying')
+        response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
         response.sort()
         self.sendto(response)
 
@@ -365,17 +369,23 @@ class AutoAnswer(AutoReply):
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
         response.field('To').tag = self.dialog['uac_tag']
+        response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
         response.sort()
         self.sendto(response)
+
+        logging.debug('AutoAnswer:answer_invite:sending:Ringing:rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
+            str(self.rtp_endpoint.local_addr), str(self.rtp_endpoint.dest_addr))
+        self.rtp_endpoint.begin()
 
         logging.debug('AutoAnswer:answer_invite:sending:OK')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='200', reason_phrase='OK')
         response.field('To').tag = self.dialog['uac_tag']
+        response.body = support.sip_sdp(username=self.user_info['name'],
+            sockname=self.rtp_endpoint.local_addr)
         response.hdr_fields.append(hf.Content_Type(value='application/sdp'))
         response.hdr_fields.append(hf.Content_Disposition(value='session'))
-        response.body = support.sip_sdp(owner=self.user_info['name'],
-            sockname=self.rtp_endpoint.local_addr)
+        response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
         response.sort()
         self.sendto(response)
 
@@ -398,7 +408,6 @@ class AutoAnswer(AutoReply):
     def dial(self, recipient):
         '''Initiate call to recipient (dialog). RTP must be ready.'''
         logging.debug('AutoAnswer:dial()')
-        # self.user_info
         invite = support.sip_invite(self.local_addr,
             self.user_info, recipient,
             self.rtp_endpoint.local_addr, request_uri=None)
@@ -489,11 +498,11 @@ class AutoAnswer(AutoReply):
         # TODO Need propagation mechanism
         assert invite.field('Authorization') is None
 
+        invite.field('CSeq').value = self.cseq_out_of_dialog
         invite.hdr_fields.append(
             hf.Proxy_Authorization(value=self.get_digest_auth(
                 sip_fields.getfield('Proxy-Authenticate')[0],
                 invite.method, self.user_info, uri=self.user_info['sipuri'])))
-        invite.field('CSeq').value = self.cseq_out_of_dialog
         invite.sort()
 
         self.state_callback[invite.field('Call_ID').value] = self.dial_callback
@@ -503,8 +512,9 @@ class AutoAnswer(AutoReply):
         '''State machine callback for 200 OK w/SDP, respond with ACK'''
         logging.debug('AutoAnswer:dial_200ok')
         # Get destination RTP endpoint
-        rtp_sock = rtp_sockname_from_sdp(sip_msg)
-        self.rtp_endpoint.dest_addr = rtp_sock
+        self.rtp_endpoint.dest_addr = rtp_sockname_from_sdp(sip_msg)
+        logging.debug('AutoAnswer:dial_200ok:rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
+            str(self.rtp_endpoint.local_addr), str(self.rtp_endpoint.dest_addr))
         self.rtp_endpoint.begin()
 
         fields = hf.HeaderFieldValues(sip_msg)
@@ -544,11 +554,12 @@ class AutoAnswer(AutoReply):
         bye.field('To').tag = self.dialog['uas_tag']
         bye.field('From').value = self.dialog['uac_user']
         bye.field('From').tag = self.dialog['uac_tag']
-        bye.hdr_fields.append(hf.Contact(value=\
-            f'<sip:{self.user_info["extension"]}@{self.local_addr[0]}:{self.local_addr[1]}>'))
         bye.field('CSeq').value = self.cseq_out_of_dialog
         bye.field('CSeq').method = bye.method
         bye.field('Call_ID').value = self.dialog['call_id']
+        bye.hdr_fields.append(hf.Contact(value=\
+            f'<sip:{self.user_info["extension"]}@{self.local_addr[0]}:{self.local_addr[1]}>'))
+        bye.hdr_fields.append(hf.User_Agent(value=self.user_agent))
         bye.sort()
 
         self.sendto(bye)
@@ -567,6 +578,7 @@ class AutoAnswer(AutoReply):
         '''Received request from UAS to end dialog.'''
         logging.debug('AutoAnswer:bye_dialog')
         bye_resp = sipmsg.Response(prev_msg=sip_msg, status_code=200, reason_phrase='OK')
+        bye_resp.hdr_fields.append(hf.User_Agent(value=self.user_agent))
         bye_resp.sort()
         self.sendto(bye_resp)
 
