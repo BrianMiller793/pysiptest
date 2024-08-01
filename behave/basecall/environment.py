@@ -72,12 +72,12 @@ def udp_transport(context):
     async_context = use_or_create_async_context(context, 'udp_transport')
 
     # Create the task for the client
-    for user in [u for u in td.TEST_USERS.values()
-            if u['password'] is not None]:
-        logging.debug('fixture udp_transport, user=%s', user['name'])
-        task = async_context.loop.create_task(
-            init_transport(context, async_context,
-                user['name'], user))
+    for user_key, user in td.TEST_USERS.items():
+        if user['password'] is not None:
+            logging.debug('fixture udp_transport, user=%s', user['name'])
+            task = async_context.loop.create_task(
+                init_transport(context, async_context,
+                    user_key, user))
         async_context.loop.run_until_complete(task)
     assert hasattr(context, 'sip_xport')
 
@@ -153,10 +153,15 @@ def before_feature(context, feature): # pylint: disable=W0613
 # pylint: disable=W0613
 def after_feature(context, feature):
     '''Unregister users after feature completed.'''
+    logging.debug('after_feature')
     async_context = use_or_create_async_context(context, 'udp_transport')
-    for user in [u['name'] for u in td.TEST_USERS.values()
-            if u['password'] is not None]:
-        logging.debug('after_feature, user=%s', user)
-        task = async_context.loop.create_task(
-            unregister_user(context, user))
-        async_context.loop.run_until_complete(task)
+    for user_key, user in td.TEST_USERS.items():
+        logging.debug('after_feature, user=%s', user_key)
+        if user['password'] is not None:
+            if hasattr(context, 'sip_xport') and hasattr(context.sip_xport[user_key][1], 'rtp_endpoint'):
+                logging.debug('after_feature, context rtp_endpoint.end()')
+                context.sip_xport[user_key][1].rtp_endpoint.end()
+            logging.debug('after_feature, unregister user=%s', user_key)
+            task = async_context.loop.create_task(
+                unregister_user(context, user_key))
+            async_context.loop.run_until_complete(task)

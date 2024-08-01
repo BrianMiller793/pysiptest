@@ -54,12 +54,13 @@ async def wait_for_response(protocol, expected_codes):
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     assert 'udp_transport' in context
+    assert 'sip_xport' in context
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
     if not user_protocol.is_registered:
         logging.debug('registers %s: wait=loop.create_future()', name)
         user_protocol.wait = context.udp_transport.loop.create_future()
-        user_protocol.start_registration(expires=1800)
+        user_protocol.start_registration(expires=600)
         if not user_protocol.wait.done():
             await user_protocol.wait
         assert user_protocol.wait.result() is True
@@ -79,9 +80,8 @@ async def step_impl(context, caller, receiver):
 
     # Create RTP playback endpoint
     _, protocol = await context.udp_transport.loop.create_datagram_endpoint(
-        lambda: RtpPlay(on_con_lost=None,
-            file_name='sipp_call.pcap',
-            loop=context.udp_transport.loop),
+        lambda: RtpPlay(context.udp_transport.loop, on_con_lost=None,
+            file_name='sipp_call.pcap'),
         local_addr=(context.test_host, 0)) # server mode
     user_protocol.rtp_endpoint = protocol
 
@@ -142,12 +142,14 @@ def refer_from_ack(refer_to:str, ack_msg:str, user_protocol):
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
-    logging.debug('waits for a call %s: wait=loop.create_future', name)
+    logging.debug('expects a call %s: wait=loop.create_future', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
     async_context = use_or_create_async_context(context, 'udp_transport')
     _, protocol = \
         await context.udp_transport.loop.create_datagram_endpoint(
-            lambda: RtpEcho(async_context.loop, on_con_lost=None),
+            # or RtpEcho
+            lambda: RtpPlay(async_context.loop, on_con_lost=None,
+                file_name='sipp_call.pcap'),
             local_addr=(context.test_host, 0)) # server mode
 
     user_protocol.rtp_endpoint = protocol
@@ -176,6 +178,7 @@ async def step_impl(context, time):
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
+    user_protocol.rtp_endpoint.end()
     logging.debug('hangs up %s: wait=loop.create_future()', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.hangup()
