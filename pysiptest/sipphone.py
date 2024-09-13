@@ -35,6 +35,10 @@ class SipPhoneUdpClient:
             if 'on_con_lost' in kwargs else None
         self.user_info = kwargs['user_info'] \
             if 'user_info' in kwargs else {}
+        self.header_fields = kwargs['header_fields'] \
+            if 'header_fields' in kwargs else {
+                'User-Agent': 'pysip/123456_DEADBEEFCAFE',
+                'Expires': 120}
         self.wait = None                    # General wait point
         self.transport = None
         self.recvd_pkts = []                # all received packets (string)
@@ -45,7 +49,6 @@ class SipPhoneUdpClient:
         self._cseq_out_of_dialog = 0
         self.local_addr = None              # sockname of SIP client
         self.sip_digest_auth = SipDigestAuth() # Create digest authentication
-        self.user_agent = 'pysip/123456_DEADBEEFCAFE'
 
     @property
     def cseq_in_dialog(self):
@@ -155,18 +158,21 @@ class RegisterUnregister(SipPhoneUdpClient):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.is_registered = False
+        self.expires = 0
 
-    def start_registration(self, expires=60):
+    def start_registration(self):
         '''State machine: Start registration for client'''
         # Send REGISTER without authentication
         if len(self.user_info) == 0:
             raise AttributeError('user_info not set')
         register = support.sip_register(self.local_addr, self.user_info,
-            expires=expires)
+            header_fields=self.header_fields)
         register.field('CSeq').value = self.cseq_out_of_dialog
         self.state_callback[register.field('Call_ID').value] = \
             self.register_with_auth
+        self.expires = int(register.field('Expires').value)
         self.sendto(register)
+        self.is_registered = False
 
     def register_with_auth(self, sip_msg:str):
         '''State machine: Register with Authentication.'''
@@ -192,8 +198,7 @@ class RegisterUnregister(SipPhoneUdpClient):
         '''End state for registration, sets .wait'''
         logging.debug('SipPhoneUdpClient:registered')
         code = int(sipmsg.Response.get_code(sip_msg))
-        if 200 <= code < 300:
-            self.is_registered = not self.is_registered
+        self.is_registered = 200 <= code < 300 and self.expires != 0
         # The user *should* be waiting on this.
         logging.debug('registered: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
@@ -213,8 +218,10 @@ class RegisterUnregister(SipPhoneUdpClient):
         if len(self.user_info) == 0:
             raise AttributeError('user_info not set')
         sock_addr = self.transport.get_extra_info('socket').getsockname()
-        unregister = support.sip_register(sock_addr, self.user_info, expires=0)
+        unregister = support.sip_register(sock_addr, self.user_info,
+            header_fields=self.header_fields)
         unregister.field('Expires').value = 0
+        self.expires = 0
         unregister.field('CSeq').value = self.cseq_out_of_dialog
         # This presumes Contact field has only one address
         contact_field = unregister.field('Contact')
@@ -249,7 +256,8 @@ class KeepAlive(RegisterUnregister):
         addr = transport.get_extra_info('socket').getsockname()
 
         # Create OPTIONS message, and save branch
-        self.options_msg = support.sip_options(self.user_info, addr)
+        self.options_msg = support.sip_options(self.user_info, addr,
+            header_fields=self.header_fields)
         self.options_msg.field('CSeq').value = self.cseq_out_of_dialog
         self.branch = self.options_msg.field('Via').via_params['branch']
         self.fire_at = self.loop.time() + self.ka_interval
@@ -290,7 +298,7 @@ class AutoReply(KeepAlive):
             response = sipmsg.Response(status_code=200, reason_phrase='OK')
             response.method = sip_method
             response.init_from_msg(sip_msg)
-            response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
+            support.insert_behave_fields(self.header_fields, response)
             response.sort()
             self.sendto(response)
             return
@@ -356,7 +364,7 @@ class AutoAnswer(AutoReply):
         logging.debug('AutoAnswer:answer_invite:sending:Trying')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='100', reason_phrase='Trying')
-        response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
+        support.insert_behave_fields(self.header_fields, response)
         response.sort()
         self.sendto(response)
 
@@ -369,7 +377,7 @@ class AutoAnswer(AutoReply):
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
         response.field('To').tag = self.dialog['uac_tag']
-        response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
+        support.insert_behave_fields(self.header_fields, response)
         response.sort()
         self.sendto(response)
 
@@ -384,8 +392,7 @@ class AutoAnswer(AutoReply):
         response.body = support.sip_sdp(username=self.user_info['name'],
             sockname=self.rtp_endpoint.local_addr)
         response.hdr_fields.append(hf.Content_Type(value='application/sdp'))
-        response.hdr_fields.append(hf.Content_Disposition(value='session'))
-        response.hdr_fields.append(hf.User_Agent(value=self.user_agent))
+        support.insert_behave_fields(self.header_fields, response)
         response.sort()
         self.sendto(response)
 
@@ -410,7 +417,9 @@ class AutoAnswer(AutoReply):
         logging.debug('AutoAnswer:dial()')
         invite = support.sip_invite(self.local_addr,
             self.user_info, recipient,
-            self.rtp_endpoint.local_addr, request_uri=None)
+            self.rtp_endpoint.local_addr, request_uri=None, header_fields=self.header_fields)
+        #peername = self.transport.get_extra_info('peername')
+        #invite.field('Route').value = f'<sip:{peername[0]}:{peername[1]};lr>'
         self.dialog['uac_user'] = invite.field('From').value
         self.dialog['uas_user'] = invite.field('To').value
         self.dialog['req_uri'] = copy.copy(invite.field('To').value)
@@ -490,7 +499,8 @@ class AutoAnswer(AutoReply):
         to_field = sip_fields.getfield('To')[0]
         req_uri = to_field[to_field.find('<')+1 : to_field.find('>')]
         auth_ack = support.sip_ack(sip_msg, self.user_info,
-            self.local_addr, req_uri=req_uri)
+            self.local_addr, req_uri=req_uri, header_fields=self.header_fields)
+        support.insert_behave_fields(self.header_fields, auth_ack)
         self.sendto(auth_ack)
 
         invite = self.get_prev_sent('INVITE')
@@ -525,7 +535,8 @@ class AutoAnswer(AutoReply):
 
         # Send ACK
         ack = support.sip_ack(sip_msg, self.user_info, self.local_addr,
-            req_uri=self.dialog['req_uri'])
+            req_uri=self.dialog['req_uri'], header_fields=self.header_fields)
+        support.insert_behave_fields(self.header_fields, ack)
         self.sendto(ack)
         # The user *should* be waiting on this.
         logging.debug('dial_200ok: self.wait= %s', 'None' if self.wait is None else 'not None')
@@ -559,7 +570,7 @@ class AutoAnswer(AutoReply):
         bye.field('Call_ID').value = self.dialog['call_id']
         bye.hdr_fields.append(hf.Contact(value=\
             f'<sip:{self.user_info["extension"]}@{self.local_addr[0]}:{self.local_addr[1]}>'))
-        bye.hdr_fields.append(hf.User_Agent(value=self.user_agent))
+        support.insert_behave_fields(self.header_fields, bye)
         bye.sort()
 
         self.sendto(bye)
@@ -578,7 +589,7 @@ class AutoAnswer(AutoReply):
         '''Received request from UAS to end dialog.'''
         logging.debug('AutoAnswer:bye_dialog')
         bye_resp = sipmsg.Response(prev_msg=sip_msg, status_code=200, reason_phrase='OK')
-        bye_resp.hdr_fields.append(hf.User_Agent(value=self.user_agent))
+        support.insert_behave_fields(self.header_fields, bye_resp)
         bye_resp.sort()
         self.sendto(bye_resp)
 

@@ -129,10 +129,17 @@ def sdp_fields(sdp_body:str, field:str) -> list:
     fields = [f for f in sdp_body.splitlines() if f.startswith(field)]
     return fields
 
+def is_valid_by_name(name, sip_msg):
+    '''Return boolean for field validity by its name.'''
+    name = name.replace('-', '_')
+    hfield = [f[1] for f in __get_subclasses() if f[0] == name]
+    return hfield[0].isvalid(sip_msg.msg_type, sip_msg.method) if len(hfield) else None
+
 def by_name(name):
     '''Return a field instance by its name from a list of fields.'''
-    field = [f for f in __get_subclasses() if f.__class__.__name__ == name]
-    return field[0]() if len(field) == 1 else None
+    name = name.replace('-', '_')
+    field = [f[1] for f in __get_subclasses() if f[0] == name]
+    return field[0]() if len(field) else None
 
 def factory_valid_fields(sip_msg):
     """Factory to generate all valid header fields for a SIP message.
@@ -271,7 +278,7 @@ class Accept(HeaderField):
     # Accept                 2xx           -   -   -   o   m*  o   -   -   -   -   -
     # Accept                 415           -   c   -   c   c   c   c   o   o   c   m*
     # pylint: disable=C3001
-    _R = lambda nv, ov: nv
+    _R = lambda new_value, old_value: new_value
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
     where = (
@@ -2054,13 +2061,13 @@ class Session_Expires(HeaderField):
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
-        ('R', 'INVITE', 'UPDATE', _2xx),
-        ((200, 299), 'INVITE', 'UPDATE', _2xx),
+        ('R', 'INVITE,UPDATE', _R),
+        ((200, 299), 'INVITE,UPDATE', _2xx),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Session-Expires"
+        self._shortname = "x"
         self._longname = "Session-Expires"
         self.order = 50
 
@@ -2085,10 +2092,10 @@ class Min_SE(HeaderField):
     _R = lambda nv, ov: nv
     _422 = lambda nv, ov: nv
     where = (
-        ('R', 'INVITE', 'UPDATE', _R),
+        ('R', 'INVITE,UPDATE', _R),
         (None, None, None))
     mandatory = (
-        (422, 'INVITE', 'UPDATE', _422),
+        (422, 'INVITE,UPDATE', _422),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -2108,3 +2115,102 @@ class Min_SE(HeaderField):
         """Determine whether field is mandatory for the SIP message type."""
         return Min_SE.value_for_type(
             Min_SE.mandatory, msgtype, method, True) is not None
+
+#####################################################################
+# RFC 6086 -- INFO Method and Package Framework
+# RFC 2976 (obsolete)
+class Info_Package(HeaderField):
+    '''Defines a method, INFO, for the Session Initiation
+    Protocol (SIP), and an Info Package mechanism.'''
+    # This table expands on Tables 2 and 3 in RFC 3261.
+    # Header field where   proxy ACK BYE CAN INV OPT REG PRA INF MSG UPD
+    # ------------------------------------------------------------------
+    # Info-Package   R            -   -   -   -   -   -   -   m*  -   -
+
+    # Header field where   SUB NOT RFR
+    # --------------------------------
+    # Info-Package   R      -   -   -
+    # pylint: disable=C3001
+    _R = lambda nv, ov: nv
+    _469 = lambda nv, ov: nv
+    where = (
+        ('R', 'INFO', _R),
+        (None, None, None))
+
+    mandatory = (
+        ('R', 'INFO', _R),
+        (None, None, None))
+
+    def __init__(self, value=None):
+        super().__init__(value)
+        self._shortname = "Info-Package"
+        self._longname = "Info-Package"
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        """Determine whether field is valid for the SIP message type."""
+        return Info_Package.value_for_type(
+            Info_Package.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        """Determine whether field is mandatory for the SIP message type."""
+        return Info_Package.value_for_type(
+            Info_Package.mandatory, msgtype, method, True) is not None
+
+class Recv_Info(HeaderField):
+    '''Defines a method, INFO, for the Session Initiation
+    Protocol (SIP), and an Info Package mechanism.'''
+    # This table expands on Tables 2 and 3 in RFC 3261. Sometimes mandatory.
+    # Header field where   proxy ACK BYE CAN INV OPT REG PRA INF MSG UPD
+    # ------------------------------------------------------------------
+    # Recv-Info      R            -   -   -   m   -   o   o   -   -   o
+    # Recv-Info      2xx          -   -   -   o** -   -   o***-   -   o***
+    # Recv-Info      1xx          -   -   -   o** -   -   -   -   -   -
+    # Recv-Info      469          -   -   -   -   -   -   -   m*  -   -
+    # Recv-Info      r            -   -   -   o   -   -   o   -   -   o
+
+    # Header field where   SUB NOT RFR
+    # --------------------------------
+    # Recv-Info      R      -   -   -
+    # Recv-Info      2xx    -   -   -
+    # Recv-Info      1xx    -   -   -
+    # Recv-Info      469    -   -   -
+    # Recv-Info      r      -   -   -
+    # pylint: disable=C3001
+    _R = lambda nv, ov: nv
+    _r = lambda nv, ov: nv
+    _469 = lambda nv, ov: nv
+    _2xx = lambda nv, ov: nv
+    _1xx = lambda nv, ov: nv
+    where = (
+        ('R', 'INVITE,REGISTER,PRACK,UPDATE', _R),
+        ((200, 299), 'INVITE,PRACK,UPDATE', _2xx),
+        ((100, 199), 'INVITE,PRACK,UPDATE', _1xx),
+        (469, 'INFO', _469),
+        ('r', 'INVITE,PRACK,UPDATE', _r),
+        (None, None, None))
+
+    mandatory = (
+        ('R', 'INVITE', _R),
+        (469, 'INFO', _469),
+        (None, None, None))
+
+    def __init__(self, value=''):
+        super().__init__(value)
+        self._shortname = "Recv-Info"
+        self._longname = "Recv-Info"
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        """Determine whether field is valid for the SIP message type."""
+        return Recv_Info.value_for_type(
+            Recv_Info.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        """Determine whether field is mandatory for the SIP message type."""
+        return Recv_Info.value_for_type(
+            Recv_Info.mandatory, msgtype, method, True) is not None

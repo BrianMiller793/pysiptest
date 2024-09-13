@@ -4,6 +4,7 @@
 Functions to support steps Feature: Registration, RFC 3665, Section 2
 '''
 
+import logging
 import os
 import random
 
@@ -31,7 +32,7 @@ def sip_sdp(username, sockname=None) -> str:
 
     return f'''v=0
 o={username} {session_id} {version} IN IP4 {ipaddr}
-s=A conversation
+s=test SDP stream
 c=IN IP4 {ipaddr}
 t=0 0
 m=audio {audio_port} RTP/AVP 0 9 101
@@ -42,8 +43,23 @@ a=fmtp:101 0-15
 a=sendrecv
 '''.replace('\n', '\r\n')
 
-def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60, \
-    user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
+def insert_behave_fields(behave_fields, sip_msg):
+    '''Insert headers from Behave tests into message, where valid.'''
+    if behave_fields:
+        for hfk, hfv in behave_fields.items():
+            logging.debug('insert_behave_fields:hfk, hfv: %s %s', hfk, hfv)
+            if field := sip_msg.field(hfk):
+                logging.debug('insert_behave_fields:field')
+                field.value = hfv
+            else:
+                if hf.is_valid_by_name(hfk, sip_msg):
+                    logging.debug('insert_behave_fields:is_valid_by_name')
+                    new_field = hf.by_name(hfk)
+                    new_field.value = hfv
+                    sip_msg.hdr_fields.append(new_field)
+
+def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60,
+        header_fields=None) -> sipmsg.SipMessage:
     '''Provide default values for REGISTER request.'''
     assert isinstance(sock_addr, tuple)
     assert isinstance(userinfo, dict)
@@ -54,24 +70,24 @@ def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60, \
     register.init_mandatory()
     register.field('CSeq').method = register.method
     register.field('CSeq').value = int.from_bytes(os.urandom(2), 'little')
-    register.hdr_fields.append(hf.User_Agent(
-        value=user_agent))
     register.field('To').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     register.field('From').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     register.field('Via').via_params['transport'] = 'UDP'
     register.field('Via').via_params['address'] = \
         f'{sock_addr[0]}:{sock_addr[1]}'
+    register.field('Contact')
     register.hdr_fields.append(hf.Contact(
         value=f'<sip:{userinfo["extension"]}@{sock_addr[0]}:{sock_addr[1]}>'))
     register.hdr_fields.append(hf.Expires(value=expires))
     register.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    insert_behave_fields(header_fields, register)
     register.sort()
     return register
 
 def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
-    rtp_socket:tuple, request_uri:str=None, user_agent='pysip/123456_DEADBEEFCAFE') \
-    -> sipmsg.SipMessage:
+        rtp_socket:tuple, request_uri:str=None, header_fields=None) \
+        -> sipmsg.SipMessage:
     '''Create INVITE for call
 
     :param sock_addr: Local SIP socket address
@@ -90,12 +106,9 @@ def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
     invite.init_mandatory()
     invite.field('CSeq').method = invite.method
     invite.field('CSeq').value = int.from_bytes(os.urandom(2), 'little')
-    invite.hdr_fields.append(hf.Session_Expires(value='1800'))
-    invite.hdr_fields.append(hf.Min_SE(value='1800'))
     invite.hdr_fields.append(hf.Content_Type(value='application/sdp'))
-    invite.hdr_fields.append(hf.Content_Disposition(value='session'))
-    invite.hdr_fields.append(hf.User_Agent(
-        value=user_agent))
+    invite.hdr_fields.append(hf.Accept(value='application/sdp'))
+    invite.hdr_fields.append(hf.Allow_Events(value='presence,dialog,message-summary,refer'))
 
     invite.field('From').value = \
         f'{caller_info["name"]} <{caller_info["sipuri"]}>'
@@ -104,15 +117,15 @@ def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
     invite.field('Via').via_params['transport'] = 'UDP'
     invite.field('Via').via_params['address'] = f'{sock_addr[0]}:{sock_addr[1]}'
 
-    invite.field('Supported').value = '199,timer'
     invite.body = sip_sdp(caller_info['name'], rtp_socket)
     invite.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    insert_behave_fields(header_fields, invite)
     invite.sort()
     return invite
 
-def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None, user_agent='pysip/123456_DEADBEEFCAFE') \
-    -> sipmsg.SipMessage:
+def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None, header_fields=None) \
+        -> sipmsg.SipMessage:
     '''Create ACK message'''
     assert isinstance(sdp_msg, str)
     assert isinstance(userinfo, dict)
@@ -127,11 +140,13 @@ def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None, user_agent='py
     ack.field('CSeq').method = 'ACK'
     ack.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
-    ack.hdr_fields.append(hf.User_Agent(value=user_agent))
+    ack.hdr_fields.append(hf.Allow_Events(value='presence,dialog,message-summary,refer'))
+    insert_behave_fields(header_fields, ack)
     ack.sort()
     return ack
 
-def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None, user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
+def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None,
+        header_fields=None) -> sipmsg.SipMessage:
     '''Create BYE message
 
     :param sdp_msg: SDP message starting the call.
@@ -159,12 +174,11 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None, user_agent
     bye.field('Call_ID').value = sdp_dict['Call-ID']
     bye.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
-    bye.hdr_fields.append(hf.User_Agent(value=user_agent))
+    insert_behave_fields(header_fields, bye)
     bye.sort()
     return bye
 
-def sip_options(userinfo:dict, addr:tuple,
-    user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
+def sip_options(userinfo:dict, addr:tuple, header_fields=None) -> sipmsg.SipMessage:
     '''Create OPTIONS request message for keep-alive, outside of dialog.
 
     :param userinfo: User information from test environment.
@@ -182,15 +196,15 @@ def sip_options(userinfo:dict, addr:tuple,
     options.field('From').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     options.field('To').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     options.hdr_fields.append(hf.Contact(value=addr_contact))
-    options.hdr_fields.append(hf.User_Agent(value=user_agent))
     options.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    insert_behave_fields(header_fields, options)
     options.sort()
     return options
 
 def sip_refer(from_user:dict, to_user:str,
-    sockname:tuple, refer_to:str, request_uri:str, \
-    user_agent='pysip/123456_DEADBEEFCAFE') -> sipmsg.SipMessage:
+        sockname:tuple, refer_to:str, request_uri:str,
+        header_fields=None) -> sipmsg.SipMessage:
     '''Create REFER request. RFC 3515. REFER handled same as BYE.
 
     :param from_user: Context test_user
@@ -198,7 +212,6 @@ def sip_refer(from_user:dict, to_user:str,
     :param sockname: Local SIP socket address tuple
     :param refer_to: Section 2.1, examples governed by SIP msg flow.
     :param request_uri: May be address of UC, or To: URI address.
-    :param user_agent:
     '''
     # Fanvil:
     # <sip:1002@teo?
@@ -229,17 +242,16 @@ def sip_refer(from_user:dict, to_user:str,
     refer.field('Referred_By').value = \
         str(refer.field('Contact')).split(maxsplit=1)[-1]
     refer.hdr_fields.append(hf.Event(value='refer'))
-    refer.hdr_fields.append(hf.User_Agent(
-        value=user_agent))
     refer.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+    insert_behave_fields(header_fields, refer)
     refer.sort()
     return refer
 
 # pylint: disable=R0913
 def sip_subscribe(from_user:dict, to_sipuri:str, request_uri:str,
-    sockname:tuple, event:str, accept:str, supported:str=None, expires:int=300, \
-    call_id:str=None, user_agent='pysip/123456_DEADBEEFCAFE'):
+        sockname:tuple, event:str, accept:str, supported:str=None, expires:int=300, \
+        call_id:str=None, header_fields=None):
     '''Create SUBSCRIBE request
 
     :param from_user: User URI generating request.
@@ -277,17 +289,17 @@ def sip_subscribe(from_user:dict, to_sipuri:str, request_uri:str,
     subscribe.field('Event').value = event
     if supported is not None:
         subscribe.hdr_fields.append(hf.Supported(value=supported))
-    subscribe.hdr_fields.append(hf.User_Agent(value=user_agent))
     subscribe.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     subscribe.hdr_fields.append(hf.Supported(value='eventlist, replaces, callerid'))
     subscribe.hdr_fields.append(hf.Expires(value=expires))
+    insert_behave_fields(header_fields, subscribe)
     subscribe.sort()
     return subscribe
 
 def sip_publish(from_user:dict, request_uri:str, sockname:tuple,
-    event:str, accept:str=None, supported:str=None, expires:int=None, \
-    user_agent='pysip/123456_DEADBEEFCAFE'):
+        event:str, accept:str=None, supported:str=None, expires:int=None, \
+        header_fields=None):
     '''Create PUBLISH request, RFC 3903.
     Need to track SIP-ETag returned in 2xx response.
     Initial request does not contain SIP-If-Match. Subsequent event updates
@@ -325,12 +337,12 @@ def sip_publish(from_user:dict, request_uri:str, sockname:tuple,
         publish.hdr_fields.append(hf.Accept(value=accept))
     if supported is not None:
         publish.hdr_fields.append(hf.Supported(value=supported))
-    publish.hdr_fields.append(hf.User_Agent(value=user_agent))
     publish.hdr_fields.append(hf.Allow(
         value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     publish.hdr_fields.append(hf.Supported(value='eventlist, replaces, callerid'))
     if expires is not None:
         publish.hdr_fields.append(hf.Expires(value=expires))
     publish.hdr_fields.append(hf.Content_Type(value='application/pidf+xml'))
+    insert_behave_fields(header_fields, publish)
     publish.sort()
     return publish

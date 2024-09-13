@@ -15,8 +15,8 @@ from asyncio import sleep
 import logging
 from assertpy import assert_that
 
-# pylint: disable=E0401,E0102,C0413
-from pysiptest.rtpecho import RtpEcho
+# pylint: disable=E0401,E0102,C0413,W0108
+#from pysiptest.rtpecho import RtpEcho
 from pysiptest.rtpplay import RtpPlay
 from pysiptest import sipmsg
 from pysiptest import headerfield as hf
@@ -60,12 +60,28 @@ async def step_impl(context, name):
     if not user_protocol.is_registered:
         logging.debug('registers %s: wait=loop.create_future()', name)
         user_protocol.wait = context.udp_transport.loop.create_future()
-        user_protocol.start_registration(expires=600)
+        user_protocol.start_registration()
         if not user_protocol.wait.done():
             await user_protocol.wait
         assert user_protocol.wait.result() is True
         user_protocol.wait = None
         assert user_protocol.is_registered
+
+@then('"{name}" registers')
+@async_run_until_complete(async_context='udp_transport')
+async def step_impl(context, name):
+    assert 'udp_transport' in context
+    assert 'sip_xport' in context
+    assert name in context.sip_xport
+    user_protocol = context.sip_xport[name][1]
+    logging.debug('registers %s: wait=loop.create_future()', name)
+    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.start_registration()
+    if not user_protocol.wait.done():
+        await user_protocol.wait
+    assert user_protocol.wait.result() is True
+    user_protocol.wait = None
+    assert user_protocol.is_registered
 
 # INVITE sip:2001@teo SIP/2.0
 # SIP/2.0 100 Trying
@@ -87,7 +103,15 @@ async def step_impl(context, caller, receiver):
 
     logging.debug('calls %s, %s: wait=loop.create_future()', caller, receiver)
     user_protocol.wait = context.udp_transport.loop.create_future()
-    user_protocol.dial(context.test_users[receiver])
+    if receiver in context.test_users:
+        user_protocol.dial(context.test_users[receiver])
+    else:
+        extension = {
+        'domain': 'teo',
+        'name': 'NoneGiven',
+        'extension': receiver,
+        'sipuri': f'sip:{receiver}@teo'}
+        user_protocol.dial(extension)
     # Wait for call to complete
     if not user_protocol.wait.done():
         await user_protocol.wait

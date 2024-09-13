@@ -16,7 +16,11 @@ TEST_USERS = {
         'sipuri': 'sip:2006@teo',
         'password': PASSWORD_DEFAULT,
         'server': 'UC',
-        'transport': AutoAnswer},
+        'transport': AutoAnswer,
+        'header_fields': {
+            'Session-Expires': '1800',
+            'Min-SE': '1800',
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}},
     'Bob1': {
         'domain': 'teo',
         'name': 'Bob',
@@ -24,7 +28,11 @@ TEST_USERS = {
         'sipuri': 'sip:2007@teo',
         'password': PASSWORD_DEFAULT,
         'server': 'UC',
-        'transport': AutoAnswer},
+        'transport': AutoAnswer,
+        'header_fields': {
+            'Session-Expires': '1800',
+            'Min-SE': '1800',
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}},
     'Charlie1': {
         'domain': 'teo',
         'name': 'Charlie',
@@ -32,20 +40,26 @@ TEST_USERS = {
         'sipuri': 'sip:2002@teo',
         'password': None,
         'server': None,
-        'transport': None},
-    'H100': {
+        'transport': None,
+        'header_fields': {
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}},
+    'H100': { # Hunt
         'domain': 'teo',
         'name': 'H100',
         'extension': '100',
         'sipuri': 'sip:100@teo',
         'password': None,
         'server': None,
-        'transport': None},
-    'A200': {
+        'transport': None,
+        'header_fields': {
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}},
+    'A200': { # Auto Attendant
         'domain': 'teo',
         'name': 'A200',
         'extension': '200',
         'sipuri': 'sip:200@teo',
         'password': None,
         'server': None,
-        'transport': None}}
+        'transport': None,
+        'header_fields': {
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}}}

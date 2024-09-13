@@ -36,6 +36,7 @@ class SipMessage():
 
     def field(self, field_name):
         """Return the field object by name, or None."""
+        field_name = field_name.replace('-', '_')
         hdr_field = [f
             for f in self.hdr_fields if f.__class__.__name__.rfind(field_name) != -1]
         return hdr_field[0] if len(hdr_field) == 1 else None

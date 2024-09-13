@@ -26,7 +26,8 @@ async def init_transport(
         await async_context.loop.create_datagram_endpoint(
             lambda: user_info['transport'](
                 user_info=user_info,
-                loop=async_context.loop),
+                loop=async_context.loop,
+                header_fields=user_info['header_fields']),
             remote_addr=td.TEST_SERVERS[user_info['server']])
 
     if not hasattr(context, 'sip_xport'):
@@ -44,9 +45,7 @@ async def register_user(context, name):
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.start_registration()
     await user_protocol.wait
-    is_registered = user_protocol.wait.result()
     user_protocol.wait = None
-    return is_registered
 
 async def unregister_user(context, name):
     '''Unregister a user after a scenario.
@@ -55,12 +54,12 @@ async def unregister_user(context, name):
     :param name: User name to unregister.
     '''
     user_protocol = context.sip_xport[name][1]
-
-    user_protocol.wait = context.udp_transport.loop.create_future()
-    user_protocol.start_unregistration()
-    await user_protocol.wait
-    user_protocol.wait = None
-    user_protocol.is_registered = False
+    logging.debug('unregister_user:%s:is_registered=%s', name, user_protocol.is_registered)
+    if user_protocol.is_registered:
+        user_protocol.wait = context.udp_transport.loop.create_future()
+        user_protocol.start_unregistration()
+        await user_protocol.wait
+        user_protocol.wait = None
 
 @fixture
 def udp_transport(context):
@@ -158,7 +157,9 @@ def after_feature(context, feature):
     for user_key, user in td.TEST_USERS.items():
         logging.debug('after_feature, user=%s', user_key)
         if user['password'] is not None:
-            if hasattr(context, 'sip_xport') and hasattr(context.sip_xport[user_key][1], 'rtp_endpoint'):
+            if hasattr(context, 'sip_xport') and \
+                hasattr(context.sip_xport[user_key][1], 'rtp_endpoint') and \
+                context.sip_xport[user_key][1].rtp_endpoint:
                 logging.debug('after_feature, context rtp_endpoint.end()')
                 context.sip_xport[user_key][1].rtp_endpoint.end()
             logging.debug('after_feature, unregister user=%s', user_key)
