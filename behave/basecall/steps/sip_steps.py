@@ -50,7 +50,7 @@ async def wait_for_response(protocol, expected_codes):
 # SIP/2.0 401 Unauthorized
 # REGISTER sip:teo SIP/2.0
 # SIP/2.0 200 OK
-@given('"{name}" registers')
+@given('{name} registers')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     assert 'udp_transport' in context
@@ -58,7 +58,7 @@ async def step_impl(context, name):
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
     if not user_protocol.is_registered:
-        logging.debug('registers %s: wait=loop.create_future()', name)
+        logging.debug('step registers %s: wait=loop.create_future()', name)
         user_protocol.wait = context.udp_transport.loop.create_future()
         user_protocol.start_registration()
         if not user_protocol.wait.done():
@@ -67,14 +67,14 @@ async def step_impl(context, name):
         user_protocol.wait = None
         assert user_protocol.is_registered
 
-@then('"{name}" registers')
+@then('{name} registers')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     assert 'udp_transport' in context
     assert 'sip_xport' in context
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
-    logging.debug('registers %s: wait=loop.create_future()', name)
+    logging.debug('step registers %s: wait=loop.create_future()', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
     user_protocol.start_registration()
     if not user_protocol.wait.done():
@@ -89,7 +89,7 @@ async def step_impl(context, name):
 # ACK sip:2001@teo SIP/2.0
 # INVITE sip:2001@teo SIP/2.0
 # SIP/2.0 100 Trying
-@then('"{caller}" calls "{receiver}"')
+@then('{caller} calls {receiver}')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, caller, receiver):
     user_protocol = context.sip_xport[caller][1]
@@ -99,6 +99,7 @@ async def step_impl(context, caller, receiver):
         lambda: RtpPlay(context.udp_transport.loop, on_con_lost=None,
             file_name='sipp_call.pcap'),
         local_addr=(context.test_host, 0)) # server mode
+    assert protocol is not None
     user_protocol.rtp_endpoint = protocol
 
     logging.debug('calls %s, %s: wait=loop.create_future()', caller, receiver)
@@ -106,6 +107,7 @@ async def step_impl(context, caller, receiver):
     if receiver in context.test_users:
         user_protocol.dial(context.test_users[receiver])
     else:
+        logging.debug('calls %s, %s: receiver NOT in context.test_users', caller, receiver)
         extension = {
         'domain': 'teo',
         'name': 'NoneGiven',
@@ -119,7 +121,52 @@ async def step_impl(context, caller, receiver):
         .described_as('__ calls __').is_true()
     user_protocol.wait = None
 
-@then('"{from_name}" transfers to "{to_name_uri}"')
+@then('{caller} rings {receiver} for {call_timeout} seconds')
+@async_run_until_complete(async_context='udp_transport')
+async def step_impl(context, caller, receiver, call_timeout):
+    user_protocol = context.sip_xport[caller][1]
+
+    # Create RTP playback endpoint
+    _, protocol = await context.udp_transport.loop.create_datagram_endpoint(
+        lambda: RtpPlay(context.udp_transport.loop, on_con_lost=None,
+            file_name='sipp_call.pcap'),
+        local_addr=(context.test_host, 0)) # server mode
+    assert protocol is not None
+    user_protocol.rtp_endpoint = protocol
+
+    if receiver in context.test_users:
+        user_protocol.dial(context.test_users[receiver])
+    else:
+        logging.debug('calls %s, %s: receiver NOT in context.test_users', caller, receiver)
+        extension = {
+        'domain': 'teo',
+        'name': 'NoneGiven',
+        'extension': receiver,
+        'sipuri': f'sip:{receiver}@teo'}
+        user_protocol.dial(extension)
+    logging.debug('%s rings %s: sleep', caller, receiver)
+    await sleep(int(call_timeout))
+
+@then('{name} cancels the call')
+@async_run_until_complete(async_context='udp_transport')
+async def step_impl(context, name):
+    user_protocol = context.sip_xport[name][1]
+    if user_protocol.wait is not None:
+        user_protocol.wait.cancel()
+    user_protocol.wait = context.udp_transport.loop.create_future()
+    logging.debug('%s cancels the call: wait=loop.create_future()', name)
+    user_protocol.cancel()
+    if not user_protocol.wait.done():
+        logging.debug('%s cancels the call: waiting', name)
+        await user_protocol.wait
+
+@then('{name} lets phone ring {num_rings} times before answering')
+def step_impl(context, name, num_rings):
+    user_protocol = context.sip_xport[name][1]
+    assert hasattr(user_protocol, 'num_rings')
+    user_protocol.num_rings = int(num_rings)
+
+@then('{from_name} transfers to {to_name_uri}')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, from_name, to_name_uri):
     '''REFER transfers call to another extension.'''
@@ -162,7 +209,7 @@ def refer_from_ack(refer_to:str, ack_msg:str, user_protocol):
     refer_msg.sort()
     return refer_msg
 
-@step('"{name}" expects a call')
+@step('{name} expects a call')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
@@ -179,7 +226,7 @@ async def step_impl(context, name):
     user_protocol.rtp_endpoint = protocol
     # SipPhone state machine should now be primed for INVITE
 
-@then('"{name}" answers the call')
+@then('{name} answers the call')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     '''Step waits on Future object'''
@@ -198,7 +245,7 @@ async def step_impl(context, name):
 async def step_impl(context, time):
     await sleep(int(time))
 
-@then('"{name}" hangs up')
+@then('{name} hangs up')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
@@ -212,13 +259,14 @@ async def step_impl(context, name):
         .described_as('__ hangs up').is_true()
     user_protocol.wait = None
 
-@then('"{name}" starts waiting')
-def step_impl(context, name):
+@then('{name} starts waiting')
+@async_run_until_complete(async_context='udp_transport')
+async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     logging.debug('starts waiting %s: wait=loop.create_future()', name)
     user_protocol.wait = context.udp_transport.loop.create_future()
 
-@then('"{name}" waits for hangup')
+@then('{name} waits for hangup')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
@@ -230,7 +278,7 @@ async def step_impl(context, name):
         .described_as('__ waits for hangup').is_true()
     user_protocol.wait = None
 
-@then('"{name}" unregisters')
+@then('{name} unregisters')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, name):
     assert 'udp_transport' in context

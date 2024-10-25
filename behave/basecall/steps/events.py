@@ -62,7 +62,7 @@ def parse_registrations(reg_raw):
         registration[reg_data[0]] = reg_data[1].lstrip()
     return registrations
 
-@then('connect to server "{uas_name}" event socket')
+@then('connect to server {uas_name} event socket')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, uas_name):
     global EVENT_SOCKET
@@ -125,7 +125,7 @@ async def step_impl(context):
         SIP_CALLID)
     msg = await EVENT_SOCKET.messages.get()
 
-@then('get SIP call info for "{user_name}"')
+@then('get SIP call info for {user_name}')
 @async_run_until_complete(async_context='udp_transport')
 async def step_impl(context, user_name):
     global SIP_CALLID

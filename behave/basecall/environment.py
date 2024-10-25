@@ -33,6 +33,7 @@ async def init_transport(
     if not hasattr(context, 'sip_xport'):
         context.sip_xport = {}
     context.sip_xport[user_name] = (transport, protocol)
+    await register_user(context, user_name)
 
 async def register_user(context, name):
     '''Register a user.
@@ -46,6 +47,7 @@ async def register_user(context, name):
     user_protocol.start_registration()
     await user_protocol.wait
     user_protocol.wait = None
+    logging.debug('register_user:%s:is_registered=%s', name, user_protocol.is_registered)
 
 async def unregister_user(context, name):
     '''Unregister a user after a scenario.

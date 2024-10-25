@@ -1,45 +1,45 @@
 Feature: Alice Makes Calls
 
   Scenario: Alice calls Bob
-    Given "Alice1" registers
-    Given "Bob1" registers
+    Given Alice1 registers
+    Given Bob1 registers
 
     Then pause for 1 seconds
-    #Then connect to server "TC17" event socket
+    #Then connect to server TC17 event socket
 #    Then pause for 1 seconds
-    Then "Alice1" calls "*100"
+    Then Alice1 calls *100
     Then pause for 1 seconds
     #Then get channel info for current calls
     #Then send 8 INFO to caller
     Then pause for 10 seconds
-    Then "Alice1" hangs up
+    Then Alice1 hangs up
     Then pause for 5 seconds
 
-    Then "Alice1" calls "*100"
+    Then Alice1 calls *100
     Then pause for 1 seconds
-    Then "Bob1" calls "*100"
+    Then Bob1 calls *100
     Then pause for 1 seconds
     #Then get channel info for current calls
     #Then send 99 INFO to caller
     Then pause for 65 seconds
     #Then stop event background task
-    Then "Alice1" hangs up
-    Then "Bob1" hangs up
+    Then Alice1 hangs up
+    Then Bob1 hangs up
     Then pause for 5 seconds
 
 #    # Pausing for registration timeout
-#    Then "Alice1" calls "*100"
+#    Then Alice1 calls *100
 #    Then pause for 1 seconds
-#    Then "Bob1" calls "*100"
+#    Then Bob1 calls *100
 #    Then pause for 1 seconds
 #    Then get channel info for current calls
 #    Then send 99 INFO to caller
 #    Then pause for 15 seconds
-#    Then "Alice1" registers
-#    Then "Bob1" registers
+#    Then Alice1 registers
+#    Then Bob1 registers
 #    Then pause for 100 seconds
 #    Then stop event background task
-#    Then "Bob1" hangs up
+#    Then Bob1 hangs up
 #    Then pause for 1 seconds
-    Then "Alice1" unregisters
-    Then "Bob1" unregisters
+    Then Alice1 unregisters
+    Then Bob1 unregisters
