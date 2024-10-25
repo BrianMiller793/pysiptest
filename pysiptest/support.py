@@ -47,13 +47,13 @@ def insert_behave_fields(behave_fields, sip_msg):
     '''Insert headers from Behave tests into message, where valid.'''
     if behave_fields:
         for hfk, hfv in behave_fields.items():
-            logging.debug('insert_behave_fields:hfk, hfv: %s %s', hfk, hfv)
+            #logging.debug('insert_behave_fields:hfk, hfv: %s %s', hfk, hfv)
             if field := sip_msg.field(hfk):
-                logging.debug('insert_behave_fields:field')
+                #logging.debug('insert_behave_fields:field')
                 field.value = hfv
             else:
                 if hf.is_valid_by_name(hfk, sip_msg):
-                    logging.debug('insert_behave_fields:is_valid_by_name')
+                    #logging.debug('insert_behave_fields:is_valid_by_name')
                     new_field = hf.by_name(hfk)
                     new_field.value = hfv
                     sip_msg.hdr_fields.append(new_field)
@@ -80,7 +80,7 @@ def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60,
         value=f'<sip:{userinfo["extension"]}@{sock_addr[0]}:{sock_addr[1]}>'))
     register.hdr_fields.append(hf.Expires(value=expires))
     register.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     insert_behave_fields(header_fields, register)
     register.sort()
     return register
@@ -119,7 +119,7 @@ def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
 
     invite.body = sip_sdp(caller_info['name'], rtp_socket)
     invite.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     insert_behave_fields(header_fields, invite)
     invite.sort()
     return invite
@@ -139,7 +139,7 @@ def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None, header_fields=
         value=f'<sip:{userinfo["extension"]}@{addr[0]}:{addr[1]}>'))
     ack.field('CSeq').method = 'ACK'
     ack.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     ack.hdr_fields.append(hf.Allow_Events(value='presence,dialog,message-summary,refer'))
     insert_behave_fields(header_fields, ack)
     ack.sort()
@@ -173,7 +173,7 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None,
     bye.field('CSeq').method = bye.method
     bye.field('Call_ID').value = sdp_dict['Call-ID']
     bye.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     insert_behave_fields(header_fields, bye)
     bye.sort()
     return bye
@@ -197,7 +197,7 @@ def sip_options(userinfo:dict, addr:tuple, header_fields=None) -> sipmsg.SipMess
     options.field('To').value = f'{userinfo["name"]} <{userinfo["sipuri"]}>'
     options.hdr_fields.append(hf.Contact(value=addr_contact))
     options.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     insert_behave_fields(header_fields, options)
     options.sort()
     return options
@@ -243,7 +243,7 @@ def sip_refer(from_user:dict, to_user:str,
         str(refer.field('Contact')).split(maxsplit=1)[-1]
     refer.hdr_fields.append(hf.Event(value='refer'))
     refer.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     insert_behave_fields(header_fields, refer)
     refer.sort()
     return refer
@@ -290,7 +290,7 @@ def sip_subscribe(from_user:dict, to_sipuri:str, request_uri:str,
     if supported is not None:
         subscribe.hdr_fields.append(hf.Supported(value=supported))
     subscribe.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     subscribe.hdr_fields.append(hf.Supported(value='eventlist, replaces, callerid'))
     subscribe.hdr_fields.append(hf.Expires(value=expires))
     insert_behave_fields(header_fields, subscribe)
@@ -338,7 +338,7 @@ def sip_publish(from_user:dict, request_uri:str, sockname:tuple,
     if supported is not None:
         publish.hdr_fields.append(hf.Supported(value=supported))
     publish.hdr_fields.append(hf.Allow(
-        value='ACK, BYE, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
+        value='ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE'))
     publish.hdr_fields.append(hf.Supported(value='eventlist, replaces, callerid'))
     if expires is not None:
         publish.hdr_fields.append(hf.Expires(value=expires))

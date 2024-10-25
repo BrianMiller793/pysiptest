@@ -12,6 +12,8 @@ from pysiptest import support
 import pysiptest.headerfield as hf
 from pysiptest import sipmsg
 
+# pylint: disable=R0904
+
 def rtp_sockname_from_sdp(sip_msg:str) -> tuple:
     '''Construct sockname from SDP message.'''
     fields = hf.HeaderFieldValues(sip_msg)
@@ -100,7 +102,7 @@ class SipPhoneUdpClient:
             msg_line = self.recvd_pkts[i].splitlines()[0].split()[0:2]
             logging.debug('get_prev_rcvd:msg_line=%s', msg_line)
             if method in msg_line:
-                return copy.deepcopy(self.recvd_pkts[i])
+                return copy.copy(self.recvd_pkts[i])
         return None
 
     def get_rcvd(self, method_code:str) -> list:
@@ -248,7 +250,7 @@ class KeepAlive(RegisterUnregister):
         self.user_info = kwargs['user_info']
         self.options_msg = None
         self.fire_at = None
-        self.ka_interval = 60
+        self.ka_interval = 60 # seconds
         self.branch = None
 
     def connection_made(self, transport):
@@ -325,8 +327,10 @@ class AutoAnswer(AutoReply):
         logging.debug('AutoAnswer:INITIALIZING')
         self.rtp_endpoint = kwargs['rtp_endpoint'] \
             if 'rtp_endpoint' in kwargs else None
+        self.num_rings = kwargs['rings'] if 'rings' in kwargs else 1
         self.in_a_call = False
         self.dialog = {}
+        self.answer_queue = asyncio.Queue() # Packets to be sent for answer
 
     def datagram_received(self, data, addr):    # pylint: disable=W0613
         '''Process datagram for INVITE or ACK.'''
@@ -342,6 +346,8 @@ class AutoAnswer(AutoReply):
             self.state_callback[fields.getfield('Call-ID')[0]] = self.answer_invite
         if method == 'BYE':
             self.state_callback[fields.getfield('Call-ID')[0]] = self.bye_dialog
+        if method == 'CANCEL':
+            self.state_callback[fields.getfield('Call-ID')[0]] = self.cancel_dialog
 
         super().datagram_received(data, addr)
 
@@ -357,8 +363,9 @@ class AutoAnswer(AutoReply):
         # State:
         #  From: UAS user <sip:ext@dom>;tag=jfjfjfjf
         #  To: UAC user <sip:ext@dom>
-        logging.debug('AutoAnswer:answer_invite:INVITE')
         self.dialog['req_uri'] = sip_msg.split(maxsplit=2)[1]
+        logging.debug('AutoAnswer:answer_invite:INVITE, req_uri=%s',
+            self.dialog['req_uri'])
         self.rtp_endpoint.dest_addr = rtp_sockname_from_sdp(sip_msg)
 
         logging.debug('AutoAnswer:answer_invite:sending:Trying')
@@ -366,7 +373,7 @@ class AutoAnswer(AutoReply):
             prev_msg=sip_msg, status_code='100', reason_phrase='Trying')
         support.insert_behave_fields(self.header_fields, response)
         response.sort()
-        self.sendto(response)
+        self.answer_queue.put_nowait(response)
 
         self.dialog['uas_tag'] = response.field('From').tag
         self.dialog['uac_tag'] = hf.gen_tag()
@@ -374,13 +381,15 @@ class AutoAnswer(AutoReply):
         self.dialog['uac_user'] = response.field('To').value
 
         logging.debug('AutoAnswer:answer_invite:sending:Ringing')
-        response = sipmsg.Response(
-            prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
-        response.field('To').tag = self.dialog['uac_tag']
-        support.insert_behave_fields(self.header_fields, response)
-        response.sort()
-        self.sendto(response)
+        for _ in range(self.num_rings):
+            response = sipmsg.Response(
+                prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
+            response.field('To').tag = self.dialog['uac_tag']
+            support.insert_behave_fields(self.header_fields, response)
+            response.sort()
+            self.answer_queue.put_nowait(response)
 
+        # pylint: disable=C0301
         logging.debug('AutoAnswer:answer_invite:sending:Ringing:rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
             str(self.rtp_endpoint.local_addr), str(self.rtp_endpoint.dest_addr))
         self.rtp_endpoint.begin()
@@ -394,9 +403,18 @@ class AutoAnswer(AutoReply):
         response.hdr_fields.append(hf.Content_Type(value='application/sdp'))
         support.insert_behave_fields(self.header_fields, response)
         response.sort()
-        self.sendto(response)
+        self.answer_queue.put_nowait(response)
 
+        # received ACK will trigger main state machine
         self.state_callback[response.field('Call_ID').value] = self.answer_ack
+        self.answer_callback()
+
+    def answer_callback(self):
+        '''Loop timer callback to simulate phone ringing behavior.'''
+        if not self.answer_queue.empty():
+            self.sendto(self.answer_queue.get_nowait())
+            fire_at = self.loop.time() + 1 # every second
+            self.loop.call_at(fire_at, self.answer_callback)
 
     def answer_ack(self, sip_msg:str):  # pylint: disable=W0613
         '''ACK state for received call'''
@@ -412,6 +430,44 @@ class AutoAnswer(AutoReply):
                     'AutoAnswer:answer_ack:set_result InvalidStateError:Call-ID=%s',
                     self.dialog['call_id'])
 
+    def cancel(self):
+        '''CANCEL active, incomplete INVITE dialog. Expect to receive OK, 487'''
+        # Expect OK, expect 487
+        logging.debug('AutoAnswer:cancel():expecting 200')
+        invite_msg = self.get_prev_sent('INVITE')
+        assert invite_msg is not None
+
+        self.dialog['req_uri'] = invite_msg.request_uri
+        cancel = sipmsg.Cancel(request_uri=invite_msg.request_uri)
+        cancel.init_mandatory()
+        cancel.init_from_msg(str(invite_msg))
+        cancel.field('CSeq').method = cancel.method
+        support.insert_behave_fields(self.header_fields, cancel)
+        cancel.sort()
+        self.sendto(cancel)
+        self.state_callback[self.dialog['call_id']] = self.cancel_callback
+
+    def cancel_callback(self, sip_msg:str):
+        '''State machine callback for CANCEL INVITE sequence. Expect 200 response.'''
+        code = sipmsg.Response.get_code(sip_msg)
+        if code == '200':
+            logging.debug('AutoAnswer:cancel_callback():%s expected', code)
+            self.state_callback[self.dialog['call_id']] = self.cancel_callback
+        elif code == '487':
+            cancel_ack = support.sip_ack(sip_msg, self.user_info,
+                self.local_addr, req_uri=self.dialog['req_uri'], header_fields=self.header_fields)
+            support.insert_behave_fields(self.header_fields, cancel_ack)
+            self.sendto(cancel_ack)
+        else:
+            logging.error('AutoAnswer:cancel_callback():%s unexpected', code)
+        if self.wait is not None:
+            try:
+                self.wait.set_result(code == '200')
+            except asyncio.InvalidStateError:
+                logging.warning(
+                    'AutoAnswer:answer_ack:set_result InvalidStateError:Call-ID=%s',
+                    self.dialog['call_id'])
+
     def dial(self, recipient):
         '''Initiate call to recipient (dialog). RTP must be ready.'''
         logging.debug('AutoAnswer:dial()')
@@ -422,7 +478,7 @@ class AutoAnswer(AutoReply):
         #invite.field('Route').value = f'<sip:{peername[0]}:{peername[1]};lr>'
         self.dialog['uac_user'] = invite.field('From').value
         self.dialog['uas_user'] = invite.field('To').value
-        self.dialog['req_uri'] = copy.copy(invite.field('To').value)
+        self.dialog['req_uri'] = invite.field('To').value.split('<')[-1].strip('<>')
         logging.debug('AutoAnswer:dial:dialog:req_uri=%s',
             self.dialog['req_uri'])
         self.dialog['uac_tag'] = invite.field('From').tag
@@ -456,6 +512,8 @@ class AutoAnswer(AutoReply):
             self.dial_200ok(sip_msg)
         elif code == '407':
             self.dial_407proxy_auth_req(sip_msg)
+        elif code == '487':
+            self.dial_487requestterminated()
         else:
             logging.error('AutoAnswer:dial_callback:received %s', code)
 
@@ -488,6 +546,16 @@ class AutoAnswer(AutoReply):
         logging.debug('AutoAnswer:dial_183sessionprogress')
         fields = hf.HeaderFieldValues(sip_msg)
         self.state_callback[fields.getfield('Call-ID')[0]] = self.dial_callback
+        self.dialog['uas_tag'] = fields.getfield('To')[0].split('=')[-1]
+        self.dialog['session_id'] = fields.getfield('Session-ID')[0]
+
+    def dial_487requestterminated(self):
+        '''State machine callback for 487 Request Terminated.'''
+        logging.debug('AutoAnswer:dial_487requestterminated')
+        # No further processing
+        if self.wait is not None:
+            logging.debug('dial_487requestterminated: wait.set_result(False)')
+            self.wait.set_result(False)
 
     def dial_407proxy_auth_req(self, sip_msg:str):
         '''State machine callback for 407 Proxy Authentication Required.'''
@@ -600,6 +668,48 @@ class AutoAnswer(AutoReply):
         logging.debug('bye_dialog: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
             self.wait.set_result(True)
+
+    def cancel_dialog(self, sip_msg:str):
+        '''Received request from UAS to cancel INVITE. Send OK, then 487'''
+        logging.debug('AutoAnswer:cancel_dialog')
+        self.answer_queue = asyncio.Queue() # Dump queued answering packets
+
+        # 200 for CANCEL
+        response = sipmsg.Response(prev_msg=sip_msg, status_code=200, reason_phrase='OK')
+        response.init_from_msg(sip_msg)
+        response.method = 'CANCEL'
+        support.insert_behave_fields(self.header_fields, response)
+        response.sort()
+        self.sendto(response)
+
+        # 487 for INVITE
+        invite_sip = self.get_prev_rcvd('INVITE')
+        response = sipmsg.Response(
+            prev_msg=invite_sip, status_code=487, reason_phrase='Request Terminated')
+        response.init_from_msg(invite_sip)
+        response.method = 'INVITE'
+        support.insert_behave_fields(self.header_fields, response)
+        response.sort()
+        self.sendto(response)
+
+        # expect ACK
+        fields = hf.HeaderFieldValues(sip_msg)
+        call_id = fields.getfield('Call-ID')[0]
+        self.state_callback[call_id] = self.cancel_ack
+
+    def cancel_ack(self, sip_msg:str):  # pylint: disable=W0613
+        '''ACK state for canceled call'''
+        logging.debug('AutoAnswer:cancel_ack:Call-ID=%s', self.dialog['call_id'])
+        self.in_a_call = False
+        logging.debug('answer_ack: self.wait= %s', 'None' if self.wait is None else 'not None')
+        # The user *should* be waiting on this
+        if self.wait is not None:
+            try:
+                self.wait.set_result(True)
+            except asyncio.InvalidStateError:
+                logging.warning(
+                    'AutoAnswer:answer_ack:set_result InvalidStateError:Call-ID=%s',
+                    self.dialog['call_id'])
 
     def clear_endpoint(self):
         '''End state, clear endpoint data.'''

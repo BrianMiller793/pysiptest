@@ -1,4 +1,4 @@
-"""Message header fields for SIP messages. RFC 3261, see also RFC 2543."""
+'''Message header fields for SIP messages. RFC 3261, see also RFC 2543.'''
 
 # vim: set ai ts=4 sw=4 expandtab:
 # Author: Brian C. Miller
@@ -18,8 +18,8 @@ import uuid
 
 # Absolutely mandatory fields, Section 8.1.1, ordered by recommendation.
 MANDATORY = ('Via', 'Max_Forwards', 'From', 'To', 'CSeq', 'Call_ID')
-VIA_COOKIE = "z9hG4bK"
-SIP_VER = "SIP/2.0"
+VIA_COOKIE = 'z9hG4bK'
+SIP_VER = 'SIP/2.0'
 
 # Compact name to normal lookup
 COMPACT_NAMES = {
@@ -59,8 +59,8 @@ class HeaderFieldValues():
         return [fnv[1] for fnv in self._fields if fnv[0] == field_name]
 
     def msg2fields(self, sipmsg:str) -> list:
-        """Split SIP message into field-value dictionary. Additional
-        data after header fields is in 'Body'."""
+        '''Split SIP message into field-value dictionary. Additional
+        data after header fields is in 'Body'.'''
         # Use takewhile to split the message until an empty line
         # between fields and body
         line_iter = itertools.takewhile(lambda x : len(x), sipmsg.splitlines())
@@ -78,32 +78,32 @@ class HeaderFieldValues():
         self._names = [fvp[0] for fvp in self._fields]
 
 def __get_subclasses():
-    """Get all subclasses of HeaderField."""
+    '''Get all subclasses of HeaderField.'''
     return inspect.getmembers(sys.modules[__name__],
         predicate=lambda o: inspect.isclass(o) \
             and issubclass(o, HeaderField) \
             and not o is HeaderField)
 
 def gen_rand_str(length=10):
-    """Generate a string, [A-Za-z0-9]*"""
+    '''Generate a string, [A-Za-z0-9]*'''
     return ''.join(
         random.SystemRandom()
         .choice(string.ascii_letters + string.digits)
         for _ in range(length))
 
 def gen_tag():
-    """Generate a tag value, sec 19.3"""
+    '''Generate a tag value, sec 19.3'''
     # "MUST be globally unique and cryptographically random
     # with at least 32 bits of randomness."
     return int.from_bytes(os.urandom(4), 'little', signed=False)
 
 def gen_new_branch(length=10):
-    """Generate a value for a new branch ID."""
+    '''Generate a value for a new branch ID.'''
     return VIA_COOKIE + gen_rand_str(length)
 
 def msg2fields(sipmsg:str) -> dict:
-    """Split SIP message into field-value dictionary. Additional
-    data after header fields is in 'Body'."""
+    '''Split SIP message into field-value dictionary. Additional
+    data after header fields is in 'Body'.'''
     # Use takewhile to split the message until an empty line
     # between fields and body
     line_iter = itertools.takewhile(lambda x : len(x), sipmsg.splitlines())
@@ -142,11 +142,11 @@ def by_name(name):
     return field[0]() if len(field) else None
 
 def factory_valid_fields(sip_msg):
-    """Factory to generate all valid header fields for a SIP message.
+    '''Factory to generate all valid header fields for a SIP message.
 
     :param sip_msg: Reference SIP message.
     :returns: list of fields.
-    """
+    '''
     assert sip_msg is not None
     assert sip_msg.method is not None
     assert sip_msg.msg_type is not None
@@ -155,11 +155,11 @@ def factory_valid_fields(sip_msg):
         if f[1].isvalid(sip_msg.msg_type, sip_msg.method)]
 
 def factory_mandatory_fields(sip_msg):
-    """Factory to generate all mandatory header fields for a SIP message.
+    '''Factory to generate all mandatory header fields for a SIP message.
 
     :param sip_msg: Reference SIP message.
     :returns: list of fields.
-    """
+    '''
     assert sip_msg is not None
     assert sip_msg.method is not None
     assert sip_msg.msg_type is not None
@@ -168,7 +168,7 @@ def factory_mandatory_fields(sip_msg):
         if f[1].ismandatory(sip_msg.msg_type, sip_msg.method)]
 
 def factory_field_by_name(field_name):
-    """Factory to instantiate object by field name."""
+    '''Factory to instantiate object by field name.'''
 
     if field_name is None:
         return None
@@ -188,11 +188,11 @@ def factory_field_by_name(field_name):
     return instance or None
 
 class HeaderField():
-    """Base class for a SIP message header field."""
+    '''Base class for a SIP message header field.'''
     # pylint: disable=too-many-public-methods,invalid-name
 
     def __init__(self, value=None):
-        """Initialize a new instance of HeaderField. """
+        '''Initialize a new instance of HeaderField. '''
         self.value = value
         self.use_compact = False
         self.order = 50
@@ -201,7 +201,7 @@ class HeaderField():
 
     def __str__(self):
         # pylint: disable=C0209
-        return "{}: {}".format(
+        return '{}: {}'.format(
             self._shortname if self.use_compact else self._longname,
             self.value)
 
@@ -212,7 +212,7 @@ class HeaderField():
 
     @staticmethod
     def value_for_type(where_set, msg_type, method, new_value, old_value=None):
-        """Return valid value for msessage type.
+        '''Return valid value for msessage type.
 
         This method is used to set appropriate values for the field.
         :param where_set: A set based on RFC 3261, Table 2 and 3.
@@ -224,7 +224,7 @@ class HeaderField():
         :param new_value: A new value for the field.
         :param old_value: A value from the previous set of headers, optional.
         :returns: None if field is not valid.
-        """
+        '''
         for hf_action in where_set:
             valid_methods = hf_action[1].split(',') if hf_action[1] else None
             if isinstance(hf_action[0], tuple) and \
@@ -272,7 +272,7 @@ class HeaderField():
 #   -: The header field is not applicable.
 
 class Accept(HeaderField):
-    """Identify message body formats that are accepted. Sec 20.1"""
+    '''Identify message body formats that are accepted. Sec 20.1'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Accept                  R            -   o   -   o   m*  o   o   o   o   o   o
     # Accept                 2xx           -   -   -   o   m*  o   -   -   -   -   -
@@ -282,33 +282,33 @@ class Accept(HeaderField):
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        ((200, 299), "INVITE,OPTIONS,REGISTER", _2xx),
-        (415, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER", _415))
+        ('R', 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        ((200, 299), 'INVITE,OPTIONS,REGISTER', _2xx),
+        (415, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER', _415))
     mandatory = (
-        ('R', "OPTIONS", _R),
-        ((200, 299), "OPTIONS", _2xx),
-        (415, "PUBLISH", _415))
+        ('R', 'OPTIONS', _R),
+        ((200, 299), 'OPTIONS', _2xx),
+        (415, 'PUBLISH', _415))
 
     def __init__(self, value='application/sdp'):
         super().__init__(value)
-        self._shortname = "Accept"
-        self._longname = "Accept"
+        self._shortname = 'Accept'
+        self._longname = 'Accept'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Accept.value_for_type(
             Accept.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Accept.value_for_type(
             Accept.mandatory, msgtype, method, True) is not None
 
 class Accept_Encoding(HeaderField):
-    """Identify encoding formats accepted in response. Sec 20.2"""
+    '''Identify encoding formats accepted in response. Sec 20.2'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Accept-Encoding         R            -   o   -   o   o   o   o   o   o       o
     # Accept-Encoding        2xx           -   -   -   o   m*  o   -   -   -       -
@@ -318,32 +318,32 @@ class Accept_Encoding(HeaderField):
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,PUBLISH", _R),
-        ((200, 299), "INVITE,OPTIONS,REGISTER", _2xx),
+        ('R', 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,PUBLISH', _R),
+        ((200, 299), 'INVITE,OPTIONS,REGISTER', _2xx),
         (415, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _415))
     mandatory = (
-        ((200, 299), "OPTIONS", _2xx),
-        (415, "PUBLISH", _415))
+        ((200, 299), 'OPTIONS', _2xx),
+        (415, 'PUBLISH', _415))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Accept-Encoding"
-        self._longname = "Accept-Encoding"
+        self._shortname = 'Accept-Encoding'
+        self._longname = 'Accept-Encoding'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Accept_Encoding.value_for_type(
             Accept_Encoding.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Accept_Encoding.value_for_type(
             Accept_Encoding.mandatory, msgtype, method, True) is not None
 
 class Accept_Language(HeaderField):
-    """Indicates preferred languages. Sec 20.3"""
+    '''Indicates preferred languages. Sec 20.3'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Accept-Language         R            -   o   -   o   o   o   o   o   o   o   o
     # Accept-Language        2xx           -   -   -   o   m*  o   -   -   -   -   -
@@ -353,32 +353,32 @@ class Accept_Language(HeaderField):
     _2xx = lambda nv, ov: nv
     _415 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        ((200, 299), "INVITE,OPTIONS,REGISTER", _2xx),
-        (415, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER", _415))
+        ('R', 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        ((200, 299), 'INVITE,OPTIONS,REGISTER', _2xx),
+        (415, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER', _415))
     mandatory = (
-        ((200, 299), "OPTIONS", _2xx),
-        (415, "PUBLISH", _415))
+        ((200, 299), 'OPTIONS', _2xx),
+        (415, 'PUBLISH', _415))
 
     def __init__(self, value='en-us'):
         super().__init__(value)
-        self._shortname = "Accept-Language"
-        self._longname = "Accept-Language"
+        self._shortname = 'Accept-Language'
+        self._longname = 'Accept-Language'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Accept_Language.value_for_type(
             Accept_Language.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Accept_Language.value_for_type(
             Accept_Language.mandatory, msgtype, method, True) is not None
 
 class Alert_Info(HeaderField):
-    """Specifies an alternate ring tone. Sec 20.4"""
+    '''Specifies an alternate ring tone. Sec 20.4'''
     # Also see section 20.9 for security risks and mitigation
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Alert-Info              R      ar    -   -   -   o   -   -   -   -   -   -   -
@@ -387,27 +387,27 @@ class Alert_Info(HeaderField):
     _R = lambda nv, ov: nv
     _180 = lambda nv, ov: nv
     where = (
-        ('R', "INVITE", _R),
-        (180, "INVITE", _180))
+        ('R', 'INVITE', _R),
+        (180, 'INVITE', _180))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Alert-Info"
-        self._longname = "Alert-Info"
+        self._shortname = 'Alert-Info'
+        self._longname = 'Alert-Info'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Alert_Info.value_for_type(
             Alert_Info.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Allow(HeaderField):
-    """Lists the set of methods supported by the UA. Sec 20.5"""
+    '''Lists the set of methods supported by the UA. Sec 20.5'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Allow                   R            -   o   -   o   o   o   o   o   o   o   o
     # Allow                  2xx           -   o   -   m*  m*  o   o   o   o   -
@@ -419,85 +419,85 @@ class Allow(HeaderField):
     _2xx = lambda nv, ov: nv
     _405 = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        ('r', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _r),
-        ((200, 299), "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _2xx),
-        (405, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY", _405))
+        ('R', 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        ('r', 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _r),
+        ((200, 299), 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _2xx),
+        (405, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY', _405))
     mandatory = (
-        ((200, 299), "INVITE,OPTIONS", _2xx),
-        (405, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _405))
+        ((200, 299), 'INVITE,OPTIONS', _2xx),
+        (405, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _405))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Allow"
-        self._longname = "Allow"
+        self._shortname = 'Allow'
+        self._longname = 'Allow'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Allow.value_for_type(
             Allow.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Allow.value_for_type(
             Allow.mandatory, msgtype, method, True) is not None
 
 class Authentication_Info(HeaderField):
-    """Provides mutual authentication with HTTP Digest. Sec 20.6"""
+    '''Provides mutual authentication with HTTP Digest. Sec 20.6'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Authentication-Info    2xx           -   o   -   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _2xx = lambda nv, ov: nv
     where = (
-        ((200, 299), "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _2xx),
+        ((200, 299), 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _2xx),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Authentication-Info"
-        self._longname = "Authentication-Info"
+        self._shortname = 'Authentication-Info'
+        self._longname = 'Authentication-Info'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Authentication_Info.value_for_type(
             Authentication_Info.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Authorization(HeaderField):
-    """Contains authentication credentials of a UA. Sec 20.7"""
+    '''Contains authentication credentials of a UA. Sec 20.7'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Authorization           R            o   o   o   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('R', 'ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Authorization"
-        self._longname = "Authorization"
+        self._shortname = 'Authorization'
+        self._longname = 'Authorization'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Authorization.value_for_type(
             Authorization.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Call_ID(HeaderField):
-    """Contains unique identifier for INVITE or REGISTER. Sec 20.8"""
+    '''Contains unique identifier for INVITE or REGISTER. Sec 20.8'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Call-ID                 c       r    m   m   m   m   m   m   m   m   m   m   m
     # TODO Copied from request to response
@@ -513,42 +513,42 @@ class Call_ID(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return True
 
 class Call_Info(HeaderField):
-    """Provides additional information about the caller or callee. Sec 20.9"""
+    '''Provides additional information about the caller or callee. Sec 20.9'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Call-Info                      ar    -   -   -   o   o   o   -   -   -   -   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "INVITE,OPTIONS,REGISTER,PUBLISH", _R),
+        ('Rr', 'INVITE,OPTIONS,REGISTER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Call-Info"
-        self._longname = "Call-Info"
+        self._shortname = 'Call-Info'
+        self._longname = 'Call-Info'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Call_Info.value_for_type(
             Call_Info.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Contact(HeaderField):
-    """Context-dependent URI value. Sec 20.10"""
+    '''Context-dependent URI value. Sec 20.10'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Contact                 R            o   -   -   m   o   o   -   m   m   m   -
     # Contact                1xx           -   -   -   o   -   -   -   o   o   -   -
@@ -562,15 +562,15 @@ class Contact(HeaderField):
     _3xx = lambda nv, ov: nv
     _485 = lambda nv, ov: nv
     where = (
-        ('R', "ACK,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY", _R),
-        ((100, 199), "INVITE,SUBSCRIBE,NOTIFY,SUBSCRIBE,NOTIFY", _1xx),
-        ((200, 299), "INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY", _2xx),
-        ((300, 399), "BYE,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY,PUBLISH", _3xx),
-        (485, "BYE,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY,PUBLISH", _485))
+        ('R', 'ACK,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY', _R),
+        ((100, 199), 'INVITE,SUBSCRIBE,NOTIFY,SUBSCRIBE,NOTIFY', _1xx),
+        ((200, 299), 'INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY', _2xx),
+        ((300, 399), 'BYE,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY,PUBLISH', _3xx),
+        (485, 'BYE,INVITE,OPTIONS,REGISTER,SUBSCRIBE,NOTIFY,PUBLISH', _485))
     mandatory = (
-        ('R', "INVITE,SUBSCRIBE,NOTIFY,SUBSCRIBE,NOTIFY,REFER", _R),
-        ((200, 299), "INVITE,SUBSCRIBE,REFER", _2xx),
-        ((300, 399), "SUBSCRIBE,NOTIFY", _3xx))
+        ('R', 'INVITE,SUBSCRIBE,NOTIFY,SUBSCRIBE,NOTIFY,REFER', _R),
+        ((200, 299), 'INVITE,SUBSCRIBE,REFER', _2xx),
+        ((300, 399), 'SUBSCRIBE,NOTIFY', _3xx))
 
     def __init__(self, value=None):
         super().__init__(value)
@@ -619,56 +619,56 @@ class Contact(HeaderField):
         self._to_string()
 
     def __str__(self):
-        return "{}: {}".format(     # pylint: disable=C0209
+        return '{}: {}'.format(     # pylint: disable=C0209
             self._shortname if self.use_compact else self._longname,
             self.value)
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Contact.value_for_type(
             Contact.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Contact.value_for_type(
             Contact.mandatory, msgtype, method, True) is not None
 
 class Content_Disposition(HeaderField):
-    """Describes how the message body should be interpreted. Sec 20.11"""
+    '''Describes how the message body should be interpreted. Sec 20.11'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Content-Disposition                  o   o   -   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('Rr', 'ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Content-Disposition"
-        self._longname = "Content-Disposition"
+        self._shortname = 'Content-Disposition'
+        self._longname = 'Content-Disposition'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Content_Disposition.value_for_type(
             Content_Disposition.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Content_Encoding(HeaderField):
-    """Modifier to 'media-type'. Sec 20.12"""
+    '''Modifier to 'media-type'. Sec 20.12'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Content-Encoding                     o   o   -   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('Rr', 'ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -678,43 +678,43 @@ class Content_Encoding(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Content_Encoding.value_for_type(
             Content_Encoding.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Content_Language(HeaderField):
-    """See RFC 2616, Sec 14.12. Sec 20.13"""
+    '''See RFC 2616, Sec 14.12. Sec 20.13'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Content-Language                     o   o   -   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('Rr', 'ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value='en-us'):
         super().__init__(value)
-        self._shortname = "Content-Language"
-        self._longname = "Content-Language"
+        self._shortname = 'Content-Language'
+        self._longname = 'Content-Language'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Content_Language.value_for_type(
             Content_Language.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Content_Length(HeaderField):
-    """Indicates the size of the message-body. Sec 20.14"""
+    '''Indicates the size of the message-body. Sec 20.14'''
     # TODO This field is mandatory only when there is a message body.
     # TODO If a stream-based protocol (such as TCP) is used as transport,
     #      the header field MUST be used.
@@ -724,23 +724,23 @@ class Content_Length(HeaderField):
     def __init__(self, value=0):
         super().__init__(value)
         self._shortname = 'l'
-        self._longname = "Content-Length"
+        self._longname = 'Content-Length'
         self.order = 99
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         # TODO mandatory when message has a message body or stream transport.
         # For now: mandatory
         return True
 
 class Content_Type(HeaderField):
-    """Indicates media type of the message-body. Sec 20.15"""
+    '''Indicates media type of the message-body. Sec 20.15'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Content-Type                         *   *   -   *   *   *   *   *   *   *   *
     # * = Required if message body is not empty
@@ -748,10 +748,10 @@ class Content_Type(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('Rr', 'ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
     mandatory = (
-        ('Rr', "ACK,BYE,INVITE,OPTIONS", _R),
+        ('Rr', 'ACK,BYE,INVITE,OPTIONS', _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -761,17 +761,17 @@ class Content_Type(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Content_Type.value_for_type(
             Content_Type.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class CSeq(HeaderField):
-    """Contains a sequence number and the request method. Sec 20.16"""
+    '''Contains a sequence number and the request method. Sec 20.16'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # CSeq                    c       r    m   m   m   m   m   m   m   m   m   m   m
     # TODO Copied from request to response
@@ -780,8 +780,8 @@ class CSeq(HeaderField):
 
     def __init__(self, value=1, method=None):
         super().__init__(value)
-        self._shortname = "CSeq"
-        self._longname = "CSeq"
+        self._shortname = 'CSeq'
+        self._longname = 'CSeq'
         self.order = 5
         self.method = method
 
@@ -789,7 +789,7 @@ class CSeq(HeaderField):
         # pylint: disable=C0209
         assert self.value is not None
         assert self.method is not None
-        return "{}: {} {}".format(
+        return '{}: {} {}'.format(
             self._shortname if self.use_compact else self._longname,
             self.value,
             self.method)
@@ -801,62 +801,62 @@ class CSeq(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return True
 
 class Date(HeaderField):
-    """Contains time and date. Sec 20.17"""
+    '''Contains time and date. Sec 20.17'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Date                            a    o   o   o   o   o   o   o   o   o   o   o
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Date"
-        self._longname = "Date"
+        self._shortname = 'Date'
+        self._longname = 'Date'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Error_Info(HeaderField):
-    """Provides a pointer to addition error information. Sec 20.18"""
+    '''Provides a pointer to addition error information. Sec 20.18'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Error-Info           300-699    a    -   o   o   o   o   o   o   o   o   o   o
-    # pylint: disable=C3001
+    # pylint: disable=C3001,C0301
     _300 = lambda nv, ov: nv
     where = (
-        ((300, 699), "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _300),
+        ((300, 699), 'BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _300),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Error-Info"
-        self._longname = "Error-Info"
+        self._shortname = 'Error-Info'
+        self._longname = 'Error-Info'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Error_Info.value_for_type(
             Error_Info.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Expires(HeaderField):
-    """Gives relative time after which the message expires. Sec 20.19"""
+    '''Gives relative time after which the message expires. Sec 20.19'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Expires                              -   -   -   o   -   o   -   o   -   o   o
     # Expires                2xx           -   -   -   o   -   o   -   m   -   -   m
@@ -864,31 +864,31 @@ class Expires(HeaderField):
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
-        ('Rr', "INVITE,REGISTER,REFER,PUBLISH", _R),
-        ((200, 299), "INVITE,REGISTER,SUBSCRIBE", _2xx))
+        ('Rr', 'INVITE,REGISTER,REFER,PUBLISH', _R),
+        ((200, 299), 'INVITE,REGISTER,SUBSCRIBE', _2xx))
     mandatory = (
-        ((200, 299), "INVITE,REGISTER,SUBSCRIBE,PUBLISH", _2xx),
+        ((200, 299), 'INVITE,REGISTER,SUBSCRIBE,PUBLISH', _2xx),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Expires"
-        self._longname = "Expires"
+        self._shortname = 'Expires'
+        self._longname = 'Expires'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Expires.value_for_type(
             Expires.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Expires.value_for_type(
             Expires.mandatory, msgtype, method, True) is not None
 
 class From(HeaderField):
-    """Indicates the initiator of the request. Sec. 20.10"""
+    '''Indicates the initiator of the request. Sec. 20.10'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # From                    c       r    m   m   m   m   m   m   m   m   m   m   m
     # TODO Copied from request to response
@@ -908,9 +908,9 @@ class From(HeaderField):
     def __str__(self):
         # pylint: disable=C0209
         assert self.tag is not None
-        return "{}: {}".format(
+        return '{}: {}'.format(
             self._shortname if self.use_compact else self._longname,
-            "{};tag={}".format(self.value, self.tag))
+            '{};tag={}'.format(self.value, self.tag))
 
     def from_string(self, hdr_value):
         '''Parse From: ___;tag=___ or From: ___'''
@@ -922,181 +922,181 @@ class From(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return True
 
 class In_Reply_To(HeaderField):
-    """Enumerates the Call-IDs referenced or returned. Sec 20.11"""
+    '''Enumerates the Call-IDs referenced or returned. Sec 20.11'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # In-Reply-To             R            -   -   -   o   -   -   -   -   -   -   -
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "INVITE", _R),
+        ('R', 'INVITE', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "In-Reply-To"
-        self._longname = "In-Reply-To"
+        self._shortname = 'In-Reply-To'
+        self._longname = 'In-Reply-To'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return In_Reply_To.value_for_type(
             In_Reply_To.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Max_Forwards(HeaderField):
-    """Maximum number of times message should be forwarded. Sec 20.22"""
+    '''Maximum number of times message should be forwarded. Sec 20.22'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Max-Forwards            R      amr   m   m   m   m   m   m   m   m   m   m   m
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('R', 'ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
     mandatory = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('R', 'ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=70):
         super().__init__(value)
-        self._shortname = "Max-Forwards"
-        self._longname = "Max-Forwards"
+        self._shortname = 'Max-Forwards'
+        self._longname = 'Max-Forwards'
         self.order = 2
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Max_Forwards.value_for_type(
             Max_Forwards.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Max_Forwards.value_for_type(
             Max_Forwards.mandatory, msgtype, method, True) is not None
 
 class MIME_Version(HeaderField):
-    """See RFC 2616, Sec 19.4.1. Sec 20.24"""
+    '''See RFC 2616, Sec 19.4.1. Sec 20.24'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # MIME-Version                         o   o   -   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "ACK,BYE,INVITE,OPTIONS,REGISTER,REFER,PUBLISH", _R),
+        ('Rr', 'ACK,BYE,INVITE,OPTIONS,REGISTER,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "MIME-Version"
-        self._longname = "MIME-Version"
+        self._shortname = 'MIME-Version'
+        self._longname = 'MIME-Version'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return MIME_Version.value_for_type(
             MIME_Version.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Min_Expires(HeaderField):
-    """Minimum refresh interval for soft-state elements. Sec 20.23"""
+    '''Minimum refresh interval for soft-state elements. Sec 20.23'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Min-Expires            423           -   -   -   -   -   m   -   -   -   -   m
     # pylint: disable=C3001
     _423 = lambda nv, ov: nv
     where = (
-        (423, "REGISTER,PUBLISH", _423),
+        (423, 'REGISTER,PUBLISH', _423),
         (None, None, None))
     mandatory = (
-        (423, "REGISTER,PUBLISH", _423),
+        (423, 'REGISTER,PUBLISH', _423),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Min-Expires"
-        self._longname = "Min-Expires"
+        self._shortname = 'Min-Expires'
+        self._longname = 'Min-Expires'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Min_Expires.value_for_type(
             Min_Expires.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Min_Expires.value_for_type(
             Min_Expires.mandatory, msgtype, method, True) is not None
 
 class Organization(HeaderField):
-    """Name of organization. Sec 20.25"""
+    '''Name of organization. Sec 20.25'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Organization                   ar    -   -   -   o   o   o   -   o   -   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "INVITE,OPTIONS,REGISTER,SUBSCRIBE,REFER,PUBLISH", _R),
+        ('Rr', 'INVITE,OPTIONS,REGISTER,SUBSCRIBE,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Organization"
-        self._longname = "Organization"
+        self._shortname = 'Organization'
+        self._longname = 'Organization'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Organization.value_for_type(
             Organization.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Priority(HeaderField):
-    """Indicates request urgency. Sec 20.26, also see RFC 6878"""
+    '''Indicates request urgency. Sec 20.26, also see RFC 6878'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Priority                    R          ar    -   -   -   o   -   -   -   o   -   -   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "INVITE,SUBSCRIBE,PUBLISH", _R),
+        ('R', 'INVITE,SUBSCRIBE,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Priority"
-        self._longname = "Priority"
+        self._shortname = 'Priority'
+        self._longname = 'Priority'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Priority.value_for_type(
             Priority.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Proxy_Authenticate(HeaderField):
-    """Contains an authentication challenge. Sec 20.27"""
+    '''Contains an authentication challenge. Sec 20.27'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Proxy-Authenticate         407         ar    -   m   -   m   m   m   m   m   m   m   m
     # Proxy-Authenticate         401         ar    -   o   o   o   o   o   o           o   o
@@ -1104,83 +1104,83 @@ class Proxy_Authenticate(HeaderField):
     _407 = lambda nv, ov: nv
     _401 = lambda nv, ov: nv
     where = (
-        (407, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _407),
-        (401, "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,PUBLISH", _401))
+        (407, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _407),
+        (401, 'BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,PUBLISH', _401))
     mandatory = (
-        (407, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,PUBLISH", _407),
+        (407, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,PUBLISH', _407),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Proxy-Authenticate"
-        self._longname = "Proxy-Authenticate"
+        self._shortname = 'Proxy-Authenticate'
+        self._longname = 'Proxy-Authenticate'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Proxy_Authenticate.value_for_type(
             Proxy_Authenticate.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Proxy_Authenticate.value_for_type(
             Proxy_Authenticate.mandatory, msgtype, method, True) is not None
 
 class Proxy_Authorization(HeaderField):
-    """Allows client to identify itself to proxy. Sec 20.28"""
+    '''Allows client to identify itself to proxy. Sec 20.28'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Proxy-Authorization         R          dr    o   o   -   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('R', 'ACK,BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Proxy-Authorization"
-        self._longname = "Proxy-Authorization"
+        self._shortname = 'Proxy-Authorization'
+        self._longname = 'Proxy-Authorization'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Proxy_Authorization.value_for_type(
             Proxy_Authorization.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Proxy_Require(HeaderField):
-    """Proxy-sensitive features that must be supported. Sec 20.29"""
+    '''Proxy-sensitive features that must be supported. Sec 20.29'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Proxy-Require               R          ar    -   o   -   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('R', 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Proxy-Require"
-        self._longname = "Proxy-Require"
+        self._shortname = 'Proxy-Require'
+        self._longname = 'Proxy-Require'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Proxy_Require.value_for_type(
             Proxy_Require.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Record_Route(HeaderField):
-    """Inserted by proxies to force requests through the proxy. Sec 20.30"""
+    '''Inserted by proxies to force requests through the proxy. Sec 20.30'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Record-Route                R          ar    o   o   o   o   o   -   o   o   o   o   -
     # Record-Route             2xx,18x       mr    -   o   o   o   o   -   o   o   o   o   -
@@ -1188,82 +1188,82 @@ class Record_Route(HeaderField):
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY,REFER", _R),
-        ((200, 299), "BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY,REFER", _2xx),
-        ((180, 189), "BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY,REFER", _2xx))
+        ('R', 'ACK,BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY,REFER', _R),
+        ((200, 299), 'BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY,REFER', _2xx),
+        ((180, 189), 'BYE,CANCEL,INVITE,OPTIONS,PRACK,SUBSCRIBE,NOTIFY,REFER', _2xx))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Record-Route"
-        self._longname = "Record-Route"
+        self._shortname = 'Record-Route'
+        self._longname = 'Record-Route'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Record_Route.value_for_type(
             Record_Route.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Reply_To(HeaderField):
-    """Logical return URI that may be different from From field. Sec 20.31"""
+    '''Logical return URI that may be different from From field. Sec 20.31'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Reply-To                                     -   -   -   o   -   -   -   -   -   -   -
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('Rr', "INVITE", _R),
+        ('Rr', 'INVITE', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Reply-To"
-        self._longname = "Reply-To"
+        self._shortname = 'Reply-To'
+        self._longname = 'Reply-To'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Reply_To.value_for_type(
             Reply_To.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Require(HeaderField):
-    """Used by UAC to specify options that must be supported. Sec 20.32"""
+    '''Used by UAC to specify options that must be supported. Sec 20.32'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Require                                ar    -   c   -   c   c   c   c   o   o   c   o
     # pylint: disable=C3001
     _R = lambda nv, ov: ov or nv
     where = (
-        ('Rr', "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('Rr', 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Require"
-        self._longname = "Require"
+        self._shortname = 'Require'
+        self._longname = 'Require'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Require.value_for_type(
             Require.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         # Although an optional header field, the Require MUST NOT be
         # ignored if it is present.
         return False
 
 class Retry_After(HeaderField):
-    """Indicate how long the service is expected to be unavailable. Sec 20.33"""
+    '''Indicate how long the service is expected to be unavailable. Sec 20.33'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Retry-After          404,413,480,486         -   o   o   o   o   o   o   o   o   o   o
     #                          500,503             -   o   o   o   o   o   o   o   o   o   o
@@ -1271,91 +1271,91 @@ class Retry_After(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        (404, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        (413, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        (480, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        (486, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        (500, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        (503, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        (600, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        (603, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R))
+        (404, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        (413, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        (480, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        (486, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        (500, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        (503, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        (600, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        (603, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Retry-After"
-        self._longname = "Retry-After"
+        self._shortname = 'Retry-After'
+        self._longname = 'Retry-After'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Retry_After.value_for_type(
             Retry_After.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Route(HeaderField):
-    """Force routing through listed set of proxies. Sec 20.34"""
+    '''Force routing through listed set of proxies. Sec 20.34'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Route                       R          adr   c   c   c   c   c   c   c   c   c   c   c
     # pylint: disable=C3001
     _R = lambda nv, ov: ov or nv
     where = (
-        ('R', "ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
+        ('R', 'ACK,BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Route"
-        self._longname = "Route"
+        self._shortname = 'Route'
+        self._longname = 'Route'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Route.value_for_type(
             Route.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Server(HeaderField):
-    """Information about UAS software. Sec 20.35"""
+    '''Information about UAS software. Sec 20.35'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Server                      r                -   o   o   o   o   o   o   o   o   o   o
     # pylint: disable=C3001
     _r = lambda nv, ov: nv
     where = (
-        ('r', "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _r),
+        ('r', 'BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _r),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Server"
-        self._longname = "Server"
+        self._shortname = 'Server'
+        self._longname = 'Server'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Server.value_for_type(
             Server.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Subject(HeaderField):
-    """Summary or nature of the call. Sec 20.36"""
+    '''Summary or nature of the call. Sec 20.36'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Subject                     R                -   -   -   o   -   -   -   -   -   -   o
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "INVITE,PUBLISH", _R),
+        ('R', 'INVITE,PUBLISH', _R),
         (None, None, None))
 
     def __init__(self, value=None):
@@ -1365,29 +1365,31 @@ class Subject(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Subject.value_for_type(
             Subject.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Supported(HeaderField):
-    """Enumerates all supported extensions. Sec 20.37"""
+    '''Enumerates all supported extensions. Sec 20.37'''
+    # https://www.iana.org/assignments/sip-parameters/sip-parameters.xhtml
+    #
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Supported                   R                -   o   o   m*  o   o   o   o   o   o   o
     # Supported                  2xx               -   o   o   m*  m*  o   o   o   o   o   o
-    # pylint: disable=C3001
+    # pylint: disable=C3001,C0301
     _R = lambda nv, ov: nv
     _2xx = lambda nv, ov: nv
     where = (
-        ('R', "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _R),
-        ((200, 299), "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _2xx))
+        ('R', 'BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _R),
+        ((200, 299), 'BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _2xx))
     mandatory = (
-        ('R', "INVITE", _R),
-        ((200, 299), "INVITE,OPTIONS", _2xx))
+        ('R', 'INVITE', _R),
+        ((200, 299), 'INVITE,OPTIONS', _2xx))
 
     def __init__(self, value=None):
         super().__init__(value)
@@ -1396,38 +1398,38 @@ class Supported(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Supported.value_for_type(
             Supported.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Supported.value_for_type(
             Supported.mandatory, msgtype, method, True) is not None
 
 class Timestamp(HeaderField):
-    """Time when request is sent. Sec 20.38"""
+    '''Time when request is sent. Sec 20.38'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Timestamp                                    o   o   o   o   o   o   o   o   o   o   o
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Timestamp"
-        self._longname = "Timestamp"
+        self._shortname = 'Timestamp'
+        self._longname = 'Timestamp'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class To(HeaderField):
-    """Specifies the logical recipient. Sec 20.39"""
+    '''Specifies the logical recipient. Sec 20.39'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # To                        c(1)          r    m   m   m   m   m   m   m   m   m   m   m
     # TODO Copied from request to response
@@ -1449,9 +1451,9 @@ class To(HeaderField):
     def __str__(self):
         # pylint: disable=C0209
         value = \
-            self.value if self.tag is None else "{};tag={}".format(self.value, self.tag)
+            self.value if self.tag is None else '{};tag={}'.format(self.value, self.tag)
             #";tag={}".format(self.tag) if self.tag is not None else ""
-        return "{}: {}".format(
+        return '{}: {}'.format(
             self._shortname if self.use_compact else self._longname,
             value)
 
@@ -1465,66 +1467,66 @@ class To(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return True
 
 class Unsupported(HeaderField):
-    """Lists the features not supported. Sec 20.40"""
+    '''Lists the features not supported. Sec 20.40'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Unsupported                420               -   m   -   m   m   m   m   o   o   m   o
     # pylint: disable=C3001
     _420 = lambda nv, ov: nv
     where = (
-        (420, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _420),
+        (420, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _420),
         (None, None, None))
     mandatory = (
-        (420, "BYE,INVITE,OPTIONS,REGISTER,PRACK,REFER", _420),
+        (420, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,REFER', _420),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Unsupported"
-        self._longname = "Unsupported"
+        self._shortname = 'Unsupported'
+        self._longname = 'Unsupported'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Unsupported.value_for_type(
             Unsupported.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Unsupported.value_for_type(
             Unsupported.mandatory, msgtype, method, True) is not None
 
 class User_Agent(HeaderField):
-    """Contains information about the user agent. Sec 20.40"""
+    '''Contains information about the user agent. Sec 20.40'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # User-Agent                                   o   o   o   o   o   o   o   o   o   o   o
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "User-Agent"
-        self._longname = "User-Agent"
+        self._shortname = 'User-Agent'
+        self._longname = 'User-Agent'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Via(HeaderField):
-    """Indicates path taken by the request so far. Sec 20.42"""
+    '''Indicates path taken by the request so far. Sec 20.42'''
     # One or more Via headers will exist in a message.
     # Between UAC and UAS, there will only be one Via.
     # Between UAS and proxies, there may be more than one Via.
@@ -1607,43 +1609,43 @@ class Via(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return True
 
 class Warning(HeaderField):
-    """Additional information about the response status. Sec 20.43"""
+    '''Additional information about the response status. Sec 20.43'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Warning                     r                -   o   o   o   o   o   o   o   o   o   o
     # Warning                     R                -   -   -   -   -   -   -   -   o   -
     # pylint: disable=C3001
     _r = lambda nv, ov: nv
     where = (
-        ('r', "BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _r),
+        ('r', 'BYE,CANCEL,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _r),
         ('R', 'NOTIFY', _r))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Warning"
-        self._longname = "Warning"
+        self._shortname = 'Warning'
+        self._longname = 'Warning'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Warning.value_for_type(
             Warning.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class WWW_Authenticate(HeaderField):
-    """Contains authentication challenge. Sec 20.44"""
+    '''Contains authentication challenge. Sec 20.44'''
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # WWW-Authenticate           401         ar    -   m   -   m   m   m   m   m   m   m   m
     # WWW-Authenticate           407         ar    -   o   -   o   o   o   -   -   -   o   o
@@ -1651,26 +1653,26 @@ class WWW_Authenticate(HeaderField):
     _401 = lambda nv, ov: nv
     _407 = lambda nv, ov: nv
     where = (
-        (401, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _401),
-        (407, "BYE,INVITE,OPTIONS,REGISTER,REFER,PUBLISH", _407))
+        (401, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _401),
+        (407, 'BYE,INVITE,OPTIONS,REGISTER,REFER,PUBLISH', _407))
     mandatory = (
-        (401, "BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH", _401),
+        (401, 'BYE,INVITE,OPTIONS,REGISTER,PRACK,SUBSCRIBE,NOTIFY,REFER,PUBLISH', _401),
         (None, None, None))
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "WWW-Authenticate"
-        self._longname = "WWW-Authenticate"
+        self._shortname = 'WWW-Authenticate'
+        self._longname = 'WWW-Authenticate'
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return WWW_Authenticate.value_for_type(
             WWW_Authenticate.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return WWW_Authenticate.value_for_type(
             WWW_Authenticate.mandatory, msgtype, method, True) is not None
 
@@ -1685,16 +1687,16 @@ class RAck(HeaderField):
     # pylint: disable=C3001
     _R = lambda nv, ov: nv
     where = (
-        ('R', "PRACK", _R),
+        ('R', 'PRACK', _R),
         (None, None, None))
     mandatory = (
-        ('R', "PRACK", _R),
+        ('R', 'PRACK', _R),
         (None, None, None))
 
     def __init__(self, value=None, method=None, rseq=0, cseq=0):
         super().__init__(value)
-        self._shortname = "RAck"
-        self._longname = "RAck"
+        self._shortname = 'RAck'
+        self._longname = 'RAck'
         self.method = method
         self.rseq = rseq # from RSeq header in provisional response
         self.cseq = cseq # copied from CSeq in response
@@ -1706,7 +1708,7 @@ class RAck(HeaderField):
         # copied from the CSeq in the response that is being acknowledged.
         # The method name in the RAck header is case sensitive.
         # pylint: disable=C0209
-        return "{}: {} {} {}".format(
+        return '{}: {} {} {}'.format(
             self._longname, self.rseq, self.cseq, self.method)
 
     def from_string(self, hdr_value):
@@ -1715,13 +1717,13 @@ class RAck(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return RAck.value_for_type(
             RAck.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return RAck.value_for_type(
             RAck.mandatory, msgtype, method, True) is not None
 
@@ -1733,19 +1735,19 @@ class RSeq(HeaderField):
     # pylint: disable=C3001
     _1xx = lambda nv, ov: nv
     where = (
-        ((100, 199), "INVITE", _1xx),
+        ((100, 199), 'INVITE', _1xx),
         (None, None, None))
 
     def __init__(self, value=None, method=None):
         super().__init__(value)
-        self._shortname = "RSeq"
-        self._longname = "RSeq"
+        self._shortname = 'RSeq'
+        self._longname = 'RSeq'
         self.method = method
 
     def __str__(self):
         # It contains a single numeric value from 1 to 2**32 - 1.
         # pylint: disable=C0209
-        return "{}: {}".format(self._longname, self.value)
+        return '{}: {}'.format(self._longname, self.value)
 
     def from_string(self, hdr_value):
         # Value is not set from previous header.
@@ -1753,13 +1755,13 @@ class RSeq(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return RSeq.value_for_type(
             RSeq.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 #####################################################################
@@ -1768,7 +1770,7 @@ class RSeq(HeaderField):
 # RFC 3863 -- Presence Information Data Format (PIDF)
 
 class Allow_Events(HeaderField):
-    """Allow-Events includes a list of tokens indicating the event packages supported."""
+    '''Allow-Events includes a list of tokens indicating the event packages supported.'''
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB
     # Allow-Events            R            o   o   -   o   o   o   o   o   o
     # Allow-Events           2xx           -   o   -   o   o   o   o   o   o
@@ -1786,19 +1788,19 @@ class Allow_Events(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "u"
-        self._longname = "Allow-Events"
+        self._shortname = 'u'
+        self._longname = 'Allow-Events'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Allow_Events.value_for_type(
             Allow_Events.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Allow_Events.value_for_type(
             Allow_Events.mandatory, msgtype, method, True) is not None
 
@@ -1824,8 +1826,8 @@ class Subscription_State(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Subscription-State"
-        self._longname = "Subscription-State"
+        self._shortname = 'Subscription-State'
+        self._longname = 'Subscription-State'
         self.order = 50
 
     def from_string(self, hdr_value):
@@ -1834,13 +1836,13 @@ class Subscription_State(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Subscription_State.value_for_type(
             Subscription_State.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Subscription_State.value_for_type(
             Subscription_State.mandatory, msgtype, method, True) is not None
 
@@ -1859,19 +1861,19 @@ class Event(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "o"
-        self._longname = "Event"
+        self._shortname = 'o'
+        self._longname = 'Event'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Event.value_for_type(
             Event.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Event.value_for_type(
             Event.mandatory, msgtype, method, True) is not None
 
@@ -1893,19 +1895,19 @@ class Refer_To(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "r"
-        self._longname = "Refer-To"
+        self._shortname = 'r'
+        self._longname = 'Refer-To'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Refer_To.value_for_type(
             Refer_To.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Refer_To.value_for_type(
             Refer_To.mandatory, msgtype, method, True) is not None
 
@@ -1927,19 +1929,19 @@ class Referred_By(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Referred-By"
-        self._longname = "Referred-By"
+        self._shortname = 'Referred-By'
+        self._longname = 'Referred-By'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Referred_By.value_for_type(
             Referred_By.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Referred_By.value_for_type(
             Referred_By.mandatory, msgtype, method, True) is not None
 
@@ -1956,8 +1958,8 @@ class Session_ID(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Session-ID"
-        self._longname = "Session-ID"
+        self._shortname = 'Session-ID'
+        self._longname = 'Session-ID'
         self.order = 50
         if value is None:
             self.value = hexlify(os.urandom(16)).decode()
@@ -1966,12 +1968,12 @@ class Session_ID(HeaderField):
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return True
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
     def from_string(self, hdr_value):
@@ -2001,19 +2003,19 @@ class SIP_ETag(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "SIP-ETag"
-        self._longname = "SIP-ETag"
+        self._shortname = 'SIP-ETag'
+        self._longname = 'SIP-ETag'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return SIP_ETag.value_for_type(
             SIP_ETag.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return SIP_ETag.value_for_type(
             SIP_ETag.mandatory, msgtype, method, True) is not None
 
@@ -2032,19 +2034,19 @@ class SIP_If_Match(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "SIP-If-Match"
-        self._longname = "SIP-If-Match"
+        self._shortname = 'SIP-If-Match'
+        self._longname = 'SIP-If-Match'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return SIP_If_Match.value_for_type(
             SIP_If_Match.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 #####################################################################
@@ -2054,6 +2056,7 @@ class Session_Expires(HeaderField):
     '''This extension defines a keepalive mechanism for SIP sessions.
     UAs send periodic re-INVITE or UPDATE requests
     (referred to as session refresh requests) to keep the session alive.'''
+    # Supported: timer
     # Header field          where   proxy ACK BYE CAN INV OPT REG PRA UPD SUB NOT
     # Session-Expires         R      amr   -   -   -   o   -   -   -   o   -   -
     # Session-Expires        2xx     ar    -   -   -   o   -   -   -   o   -   -
@@ -2067,19 +2070,19 @@ class Session_Expires(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "x"
-        self._longname = "Session-Expires"
+        self._shortname = 'x'
+        self._longname = 'Session-Expires'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Session_Expires.value_for_type(
             Session_Expires.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return False
 
 class Min_SE(HeaderField):
@@ -2100,19 +2103,19 @@ class Min_SE(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Min-SE"
-        self._longname = "Min-SE"
+        self._shortname = 'Min-SE'
+        self._longname = 'Min-SE'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Min_SE.value_for_type(
             Min_SE.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Min_SE.value_for_type(
             Min_SE.mandatory, msgtype, method, True) is not None
 
@@ -2143,19 +2146,19 @@ class Info_Package(HeaderField):
 
     def __init__(self, value=None):
         super().__init__(value)
-        self._shortname = "Info-Package"
-        self._longname = "Info-Package"
+        self._shortname = 'Info-Package'
+        self._longname = 'Info-Package'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Info_Package.value_for_type(
             Info_Package.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Info_Package.value_for_type(
             Info_Package.mandatory, msgtype, method, True) is not None
 
@@ -2199,18 +2202,184 @@ class Recv_Info(HeaderField):
 
     def __init__(self, value=''):
         super().__init__(value)
-        self._shortname = "Recv-Info"
-        self._longname = "Recv-Info"
+        self._shortname = 'Recv-Info'
+        self._longname = 'Recv-Info'
         self.order = 50
 
     @staticmethod
     def isvalid(msgtype, method):
-        """Determine whether field is valid for the SIP message type."""
+        '''Determine whether field is valid for the SIP message type.'''
         return Recv_Info.value_for_type(
             Recv_Info.where, msgtype, method, True) is not None
 
     @staticmethod
     def ismandatory(msgtype, method):
-        """Determine whether field is mandatory for the SIP message type."""
+        '''Determine whether field is mandatory for the SIP message type.'''
         return Recv_Info.value_for_type(
             Recv_Info.mandatory, msgtype, method, True) is not None
+
+#####################################################################
+# RFC 3325, 5876, 8217
+# Private Extensions to the Session Initiation Protocol (SIP) for
+# Asserted Identity within Trusted Networks
+class P_Asserted_Identity(HeaderField):
+    '''The P-Asserted-Identity header field is used among trusted SIP
+    entities (typically intermediaries) to carry the identity of the user
+    sending a SIP message as it was verified by authentication.'''
+    # pylint: disable=C3001,C0301
+    # Header field         where   proxy   ACK  BYE  CAN  INV  OPT  REG  SUB  NOT  REF  INF  UPD  PRA
+    # ------------         -----   -----   ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---
+    # P-Asserted-Identity           adr     -    o    -    o    o    -    o    o    o    -    -    -
+    _R = lambda nv, ov: nv
+    where = (
+        ('R', 'BYE,INVITE,OPTION,SUBSCRIBE,NOTIFY,REFER', _R),
+        (None, None, None))
+
+    def __init__(self, value=''):
+        super().__init__(value)
+        self._shortname = 'P-Asserted-Identity'
+        self._longname = 'P-Asserted-Identity'
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        '''Determine whether field is valid for the SIP message type.'''
+        return P_Asserted_Identity.value_for_type(
+            P_Asserted_Identity.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        '''Determine whether field is mandatory for the SIP message type.'''
+        return False
+
+class P_Preferred_Identity(HeaderField):
+    '''The P-Preferred-Identity header field is used from a user agent to a
+    trusted proxy to carry the identity the user sending the SIP message
+    wishes to be used for the P-Asserted-Header field value that the
+    trusted element will insert.'''
+    # pylint: disable=C3001,C0301
+    # Header field         where   proxy   ACK  BYE  CAN  INV  OPT  REG  SUB  NOT  REF  INF  UPD  PRA
+    # ------------         -----   -----   ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---
+    # P-Preferred-Identity          adr     -    o    -    o    o    -    o    o    o    -    -    -
+    _R = lambda nv, ov: nv
+    where = (
+        ('R', 'BYE,INVITE,OPTION,SUBSCRIBE,NOTIFY,REFER', _R),
+        (None, None, None))
+
+    def __init__(self, value=''):
+        super().__init__(value)
+        self._shortname = 'P-Preferred-Identity'
+        self._longname = 'P-Preferred-Identity'
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        '''Determine whether field is valid for the SIP message type.'''
+        return P_Preferred_Identity.value_for_type(
+            P_Preferred_Identity.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        '''Determine whether field is mandatory for the SIP message type.'''
+        return False
+
+#####################################################################
+# RFC 3323  A Privacy Mechanism for the Session Initiation Protocol (SIP)
+class Privacy(HeaderField):
+    '''Defines the Privace header. Values are none, header, user, session, critical
+    .'''
+    # pylint: disable=C3001,C0301
+    # Header field    where   proxy   ACK  BYE  CAN  INV  OPT  REG  SUB  NOT  PRK  IFO  UPD  MSG
+    # ------------    -----   -----   ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---  ---
+    # Privacy          adr      o      o    o    o    o    o    o    o    o    o    o    o    o
+
+    def __init__(self, value='none'):
+        super().__init__(value)
+        self._shortname = 'Privacy'
+        self._longname = 'Privacy'
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        '''Determine whether field is valid for the SIP message type.'''
+        return True
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        '''Determine whether field is mandatory for the SIP message type.'''
+        return False
+
+#####################################################################
+# RFC 5009  Private Header (P-Header) Extension for Authorization of Early Media
+class P_Early_Media(HeaderField):
+    '''This header field is useful in any SIP network that is interconnected
+    with other SIP networks and needs to control the flow of media in the
+    early dialog state.'''
+    # pylint: disable=C3001,C0301
+    # Header field         where   proxy   ACK  BYE  CAN  INV  OPT  REG  SUB  PRA  UPD
+    # ------------         -----   -----   ---  ---  ---  ---  ---  ---  ---  ---  ---
+    # P-Early-Media          R      amr     -    -    -    o    -    -    -    o    o
+    # P-Early-Media         18x     amr     -    -    -    o    -    -    -    -    -
+    # P-Early-Media         2xx     amr     -    -    -    -    -    -    -    o    o
+    _R = lambda nv, ov: nv
+    _18x = lambda nv, ov: nv
+    _2xx = lambda nv, ov: nv
+    where = (
+        ('R', 'INVITE,PRACK,UPDATE', _R),
+        ((180,189), 'INVITE', _18x),
+        ((200,299), 'PRACK,UPDATE', _2xx),
+        (None, None, None))
+
+    def __init__(self, value='supported'):
+        super().__init__(value)
+        self._shortname = 'P-Early-Media'
+        self._longname = 'P-Early-Media'
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        '''Determine whether field is valid for the SIP message type.'''
+        return P_Early_Media.value_for_type(
+            P_Early_Media.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        '''Determine whether field is mandatory for the SIP message type.'''
+        return False
+
+#####################################################################
+# RFC 3327  Extension Header Field for Registering Non-Adjacent Contacts
+class Path(HeaderField):
+    ''' Provide mechanism to discover and record proxies between UAC and UAS. '''
+    # pylint: disable=C3001,C0301
+    # Supported: path
+    # The UA SHOULD include the option tag "path" as a header field value
+    # in all Supported header fields, and SHOULD include a Supported header
+    # field in all requests.
+    # Header field          where   proxy ACK BYE CAN INV OPT REG
+    # ___________________________________________________________
+    # Path                    R       ar   -   -   -   -   -   o
+    # Path                   2xx       -   -   -   -   -   -   o
+    _R = lambda nv, ov: nv
+    _2xx = lambda nv, ov: nv
+    where = (
+        ('R', 'REGISTER', _R),
+        ((200,299), 'REGISTER', _2xx),
+        (None, None, None))
+
+    def __init__(self, value=''):
+        super().__init__(value)
+        self._shortname = 'Path'
+        self._longname = 'Path'
+        self.order = 50
+
+    @staticmethod
+    def isvalid(msgtype, method):
+        '''Determine whether field is valid for the SIP message type.'''
+        return Path.value_for_type(
+            Path.where, msgtype, method, True) is not None
+
+    @staticmethod
+    def ismandatory(msgtype, method):
+        '''Determine whether field is mandatory for the SIP message type.'''
+        return False
