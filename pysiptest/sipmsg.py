@@ -38,8 +38,10 @@ class SipMessage():
         '''Return the field object by name, or None.'''
         field_name = field_name.replace('-', '_')
         hdr_field = [f
-            for f in self.hdr_fields if f.__class__.__name__.rfind(field_name) != -1]
-        return hdr_field[0] if len(hdr_field) == 1 else None
+            for f in self.hdr_fields \
+            if f.__class__.__name__.split('.')[-1] == field_name]
+            #for f in self.hdr_fields if f.__class__.__name__.rfind(field_name) != -1]
+        return hdr_field[0] if hdr_field else None
 
     @property
     def body(self):
@@ -67,18 +69,35 @@ class SipMessage():
         self.hdr_fields = sorted(self.hdr_fields, key=lambda o: o.order)
 
     def init_from_msg(self, prevmsg:str):
-        ''' Initialize values based on previous message. '''
+        ''' Initialize values based on previous message. Works for unique header fields. '''
+
+        # The From field of the response MUST equal the From header field of
+        # the request.  The Call-ID header field of the response MUST equal the
+        # Call-ID header field of the request.  The CSeq header field of the
+        # response MUST equal the CSeq field of the request.  The Via header
+        # field values in the response MUST equal the Via header field values
+        # in the request and MUST maintain the same ordering.
+
         assert isinstance(prevmsg, str)
-        msg_fvp = hf.HeaderFieldValues(prevmsg)
+        prev_hf = hf.HeaderFieldValues(prevmsg)
         if len(self.hdr_fields) == 0:
             self.init_mandatory()
-        for hfield in self.hdr_fields:
-            msg_field_name = hfield.__class__.__name__.replace('_', '-')
-            if msg_field_name in msg_fvp.field_names:
-                hfield.from_string(msg_fvp.getfield(msg_field_name)[0])
+        for hname in prev_hf.field_names:
+            self.add_set_valid_field(hname, prev_hf.getfield(hname)[0])
 
         assert self.field('Content_Length') is not None
         self.field('Content_Length').value = 0
+        self.sort()
+
+    def add_set_valid_field(self, hname, hvalue, override=False):
+        '''For a valid header field, add or set the value'''
+        if self.field(hname):
+            self.field(hname).from_string(hvalue)
+        else:
+            if hf.is_valid_by_name(hname, self) or override:
+                new_hf = hf.by_name(hname)
+                new_hf.from_string(hvalue)
+                self.hdr_fields.append(new_hf)
 
 class Rfc3261(SipMessage):
     ''' Messages based on RFC 3261 '''

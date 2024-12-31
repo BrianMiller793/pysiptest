@@ -30,6 +30,7 @@ from behave.api.async_step import \
 
 async def wait_for_response(protocol, expected_codes):
     '''Wait for a response, and assert its value.'''
+    response = None
     if not protocol.wait.done():
         response = await protocol.rcv_queue.get()
     while response is not None:
@@ -51,15 +52,15 @@ async def wait_for_response(protocol, expected_codes):
 # REGISTER sip:teo SIP/2.0
 # SIP/2.0 200 OK
 @given('{name} registers')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
-    assert 'udp_transport' in context
+    assert 'net_transport' in context
     assert 'sip_xport' in context
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
     if not user_protocol.is_registered:
         logging.debug('step registers %s: wait=loop.create_future()', name)
-        user_protocol.wait = context.udp_transport.loop.create_future()
+        user_protocol.wait = context.net_transport.loop.create_future()
         user_protocol.start_registration()
         if not user_protocol.wait.done():
             await user_protocol.wait
@@ -68,14 +69,14 @@ async def step_impl(context, name):
         assert user_protocol.is_registered
 
 @then('{name} registers')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
-    assert 'udp_transport' in context
+    assert 'net_transport' in context
     assert 'sip_xport' in context
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
     logging.debug('step registers %s: wait=loop.create_future()', name)
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.start_registration()
     if not user_protocol.wait.done():
         await user_protocol.wait
@@ -90,24 +91,31 @@ async def step_impl(context, name):
 # INVITE sip:2001@teo SIP/2.0
 # SIP/2.0 100 Trying
 @then('{caller} calls {receiver}')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, caller, receiver):
     user_protocol = context.sip_xport[caller][1]
 
     # Create RTP playback endpoint
-    _, protocol = await context.udp_transport.loop.create_datagram_endpoint(
-        lambda: RtpPlay(context.udp_transport.loop, on_con_lost=None,
+    _, protocol = await context.net_transport.loop.create_datagram_endpoint(
+        lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
             file_name='sipp_call.pcap'),
-        local_addr=(context.test_host, 0)) # server mode
+        local_addr=(context.test_localhostip, 0)) # server mode
     assert protocol is not None
     user_protocol.rtp_endpoint = protocol
 
-    logging.debug('calls %s, %s: wait=loop.create_future()', caller, receiver)
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    logging.debug('%s calls %s: wait=loop.create_future()', caller, receiver)
+    user_protocol.wait = context.net_transport.loop.create_future()
     if receiver in context.test_users:
-        user_protocol.dial(context.test_users[receiver])
+        # Aastra 400
+        logging.debug('%s calls %s: caller sockname=%s',
+            caller, receiver, context.sip_xport[caller][0].get_extra_info('socket').getsockname())
+        logging.debug('%s calls %s: receiver sockname=%s',
+            caller, receiver, context.sip_xport[receiver][0].get_extra_info('socket').getsockname())
+        user_protocol.dial(context.test_users[receiver])#,
+            #route_addr=context.sip_xport[caller][0].get_extra_info('socket').getsockname())
+            #route_addr=context.test_servers[context.test_users[receiver]['server']])
     else:
-        logging.debug('calls %s, %s: receiver NOT in context.test_users', caller, receiver)
+        logging.debug('%s calls %s: receiver NOT in context.test_users', caller, receiver)
         extension = {
         'domain': 'teo',
         'name': 'NoneGiven',
@@ -120,17 +128,19 @@ async def step_impl(context, caller, receiver):
     assert_that(user_protocol.wait.result())\
         .described_as('__ calls __').is_true()
     user_protocol.wait = None
+    # At this point the caller will be waiting for BYE
+    context.pending_caller = caller
 
 @then('{caller} rings {receiver} for {call_timeout} seconds')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, caller, receiver, call_timeout):
     user_protocol = context.sip_xport[caller][1]
 
     # Create RTP playback endpoint
-    _, protocol = await context.udp_transport.loop.create_datagram_endpoint(
-        lambda: RtpPlay(context.udp_transport.loop, on_con_lost=None,
+    _, protocol = await context.net_transport.loop.create_datagram_endpoint(
+        lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
             file_name='sipp_call.pcap'),
-        local_addr=(context.test_host, 0)) # server mode
+        local_addr=(context.test_localhostip, 0)) # server mode
     assert protocol is not None
     user_protocol.rtp_endpoint = protocol
 
@@ -148,12 +158,12 @@ async def step_impl(context, caller, receiver, call_timeout):
     await sleep(int(call_timeout))
 
 @then('{name} cancels the call')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     if user_protocol.wait is not None:
         user_protocol.wait.cancel()
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.wait = context.net_transport.loop.create_future()
     logging.debug('%s cancels the call: wait=loop.create_future()', name)
     user_protocol.cancel()
     if not user_protocol.wait.done():
@@ -167,7 +177,7 @@ def step_impl(context, name, num_rings):
     user_protocol.num_rings = int(num_rings)
 
 @then('{from_name} transfers to {to_name_uri}')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, from_name, to_name_uri):
     '''REFER transfers call to another extension.'''
     # Same flow as BYE, expect 202, then wait for BYE
@@ -180,7 +190,7 @@ async def step_impl(context, from_name, to_name_uri):
             user_protocol.get_prev_rcvd('ACK'),
             user_protocol)
     logging.debug('%s transfers to %s: wait=loop.create_future()', from_name, to_name_uri)
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.sendto(refer_msg)
     if not user_protocol.wait.done():
         await user_protocol.wait
@@ -210,49 +220,88 @@ def refer_from_ack(refer_to:str, ack_msg:str, user_protocol):
     return refer_msg
 
 @step('{name} expects a call')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     logging.debug('expects a call %s: wait=loop.create_future', name)
-    user_protocol.wait = context.udp_transport.loop.create_future()
-    async_context = use_or_create_async_context(context, 'udp_transport')
+    user_protocol.wait = context.net_transport.loop.create_future()
+    async_context = use_or_create_async_context(context, 'net_transport')
     _, protocol = \
-        await context.udp_transport.loop.create_datagram_endpoint(
+        await context.net_transport.loop.create_datagram_endpoint(
             # or RtpEcho
             lambda: RtpPlay(async_context.loop, on_con_lost=None,
                 file_name='sipp_call.pcap'),
-            local_addr=(context.test_host, 0)) # server mode
+            local_addr=(context.test_localhostip, 0)) # server mode
 
     user_protocol.rtp_endpoint = protocol
     # SipPhone state machine should now be primed for INVITE
 
 @then('{name} answers the call')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
-    '''Step waits on Future object'''
+    '''Step waits on Future object, will hang if call doesn't go through'''
     user_protocol = context.sip_xport[name][1]
+    caller_protocol = None if not 'pending_caller' in context else \
+        context.sip_xport[context.pending_caller][1]
+
     logging.debug('answers the call %s:wait= %s', name,
         'None' if user_protocol.wait is None else 'not None')
     if not user_protocol.wait.done():
-        logging.debug('answers the call %s:waiting', name)
-        await user_protocol.wait
+        if caller_protocol and caller_protocol.in_a_call:
+            logging.debug('answers the call %s:looping sleep', name)
+            while caller_protocol.in_a_call and not user_protocol.wait.done():
+                await sleep(0.5)
+        else:
+            logging.debug('answers the call %s:waiting', name)
+            await user_protocol.wait
     assert_that(user_protocol.wait.result())\
         .described_as('__ answers the call').is_true()
     user_protocol.wait = None
 
+@then('pause for {time} seconds between {caller} and {receiver}')
+@async_run_until_complete(async_context='net_transport')
+async def step_impl(context, time, caller, receiver):
+    logging.debug('pause for call between %s and %s', caller, receiver)
+    time = int(time)
+    caller_protocol = context.sip_xport[caller][1]
+    receiver_protocol = context.sip_xport[receiver][1]
+    assert caller_protocol.in_a_call
+    assert receiver_protocol.in_a_call
+    assert caller_protocol.wait is None
+    assert receiver_protocol.wait is None
+    caller_protocol.wait = context.net_transport.loop.create_future()
+    receiver_protocol.wait = context.net_transport.loop.create_future()
+
+    # Check for unexpected BYE or other event during the call
+    while time \
+        and not caller_protocol.wait.done() \
+        and not receiver_protocol.wait.done():
+        assert caller_protocol.in_a_call
+        assert receiver_protocol.in_a_call
+        await sleep(1)
+        time -= 1
+
+    caller_protocol.wait = None
+    receiver_protocol.wait = None
+    logging.debug('pause for call between: done')
+    assert time == 0
+
 @then('pause for {time} seconds')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, time):
+    logging.debug('pause for: %s seconds', time)
     await sleep(int(time))
+    logging.debug('pause for: done')
 
 @then('{name} hangs up')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     user_protocol.rtp_endpoint.end()
     logging.debug('hangs up %s: wait=loop.create_future()', name)
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.hangup()
+    logging.debug('hangs up %s: wait=%s', name, user_protocol.wait.done())
     if not user_protocol.wait.done():
         await user_protocol.wait
     assert_that(user_protocol.wait.result())\
@@ -260,18 +309,19 @@ async def step_impl(context, name):
     user_protocol.wait = None
 
 @then('{name} starts waiting')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     logging.debug('starts waiting %s: wait=loop.create_future()', name)
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.wait = context.net_transport.loop.create_future()
 
 @then('{name} waits for hangup')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     assert_that(user_protocol.wait)\
         .described_as('__ waits for hangup:future').is_not_none()
+    logging.debug('waits for hangup')
     if not user_protocol.wait.done():
         await user_protocol.wait
     assert_that(user_protocol.wait.result())\
@@ -279,13 +329,13 @@ async def step_impl(context, name):
     user_protocol.wait = None
 
 @then('{name} unregisters')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
-    assert 'udp_transport' in context
+    assert 'net_transport' in context
     user_protocol = context.sip_xport[name][1]
 
     logging.debug('unregisters %s: wait=loop.create_future()', name)
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.start_unregistration()
     if not user_protocol.wait.done():
         await user_protocol.wait

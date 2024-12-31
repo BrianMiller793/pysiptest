@@ -1,7 +1,7 @@
 '''Define steps for presence routing tests.'''
 
 from asyncio import sleep
-import logging
+#import logging
 import os
 import subprocess
 from assertpy import assert_that
@@ -56,15 +56,15 @@ def step_impl(context, extension, receiver):
         context.test_users[receiver]["extension"], routing)
 
 @given('{name} is registered and waiting')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
-    assert 'udp_transport' in context
+    assert 'net_transport' in context
     assert 'sip_xport' in context
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
 #    if not user_protocol.is_registered:
 #        logging.debug('step presroute: %s is registered and waiting: wait=loop.create_future()', name)
-#        user_protocol.wait = context.udp_transport.loop.create_future()
+#        user_protocol.wait = context.net_transport.loop.create_future()
 #        user_protocol.start_registration()
 #        if not user_protocol.wait.done():
 #            await user_protocol.wait
@@ -77,7 +77,7 @@ async def step_impl(context, name):
     assert name in context.test_users
     user_protocol = context.sip_xport[name][1]
     assert user_protocol.is_registered
-    user_protocol.wait = context.udp_transport.loop.create_future()
+    user_protocol.wait = context.net_transport.loop.create_future()
 
 #@given('{name} is not registered')
 #def step_impl(context, name):

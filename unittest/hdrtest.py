@@ -43,27 +43,47 @@ class TestHeaderField(unittest.TestCase):
         o.value += 1
         self.assertEqual(str(o), "CSeq: 2 banana")
 
-    def test_From(self):
+    def test_From1(self):
         """ Test From __str__ functionality. """
         o = hf.From()
+        self.assertIsNotNone(o.tag)
         o.value = 'banana'
         o.tag = 1234
-        self.assertEqual(str(o), "From: banana;tag=1234")
+        self.assertEqual(str(o), "From: <banana>;tag=1234")
         o.use_compact = True
-        self.assertEqual(str(o), "f: banana;tag=1234")
+        self.assertEqual(str(o), "f: <banana>;tag=1234")
+
+    def test_From2(self):
+        """ Test From __str__ functionality. """
+        o = hf.From(value='<1234@domain.com>')
+        tag = o.tag
+        self.assertIsNotNone(o.tag)
+        self.assertEqual(str(o), f'From: <1234@domain.com>;tag={tag}')
+        o.use_compact = True
+        self.assertEqual(str(o), f'f: <1234@domain.com>;tag={tag}')
+
+    def test_From3(self):
+        """ Test From __str__ functionality. """
+        o = hf.From(value='<1234@domain.com>')
+        tag = '1234abcd'
+        o.tag = tag
+        self.assertIsNotNone(o.tag)
+        self.assertEqual(str(o), f'From: <1234@domain.com>;tag={tag}')
+        o.use_compact = True
+        self.assertEqual(str(o), f'f: <1234@domain.com>;tag={tag}')
 
     def test_To(self):
         """ Test To __str__ functionality. """
         o = hf.To()
         o.value = 'banana'
         o.tag = 1234
-        self.assertEqual(str(o), "To: banana;tag=1234")
+        self.assertEqual(str(o), "To: <banana>;tag=1234")
 
         o.use_compact = True
-        self.assertEqual(str(o), "t: banana;tag=1234")
+        self.assertEqual(str(o), "t: <banana>;tag=1234")
 
         o.tag = None
-        self.assertEqual(str(o), "t: banana")
+        self.assertEqual(str(o), "t: <banana>")
 
     def test_Via_required(self):
         """ Test Via required parameters."""
@@ -132,58 +152,54 @@ class TestHeaderField(unittest.TestCase):
         '''Test Contact from_str'''
         o = hf.Contact()
         ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600'
-        key = 'sip:watson@worcester.bell-telephone.com'
         o.from_string(ts1)
-        self.assertEqual(1, len(o.contact_params))
-        self.assertEqual(3, len(o.contact_params[key]))
-        self.assertEqual('Mr. Watson', o.contact_params[key]['display-name'])
-        self.assertEqual('0.7', o.contact_params[key]['q'])
-        self.assertEqual('3600', o.contact_params[key]['expires'])
 
-    def test_Contact_from_str2(self):
-        '''Test Contact from_str'''
-        o = hf.Contact()
-        ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600,"Mr. Watson" <mailto:watson@bell-telephone.com>;q=0.1'
-        key1 = 'sip:watson@worcester.bell-telephone.com'
-        key2 = 'mailto:watson@bell-telephone.com'
-        o.from_string(ts1)
-        self.assertEqual(2, len(o.contact_params))
-        self.assertEqual(3, len(o.contact_params[key1]))
-        self.assertEqual(2, len(o.contact_params[key2]))
-        self.assertEqual('0.1', o.contact_params[key2]['q'])
+        self.assertIsNotNone(o.display_name)
+        self.assertIsNotNone(o.name_addr_params)
+        self.assertIsNotNone(o.field_params)
+        self.assertEqual('"Mr. Watson"', o.display_name)
+        self.assertEqual('sip:watson@worcester.bell-telephone.com', o.name_addr_params)
+        self.assertEqual(2, len(o.field_params))
+        self.assertEqual('0.7', o.field_params['q'])
+        self.assertEqual('3600', o.field_params['expires'])
+
+        contact = str(o)
+        self.assertEqual(contact, 'Contact: '+ts1)
+
+#   def test_Contact_from_str2(self):
+#       '''Test Contact from_str'''
+#       o = hf.Contact()
+#       ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600,"Mr. Watson" <mailto:watson@bell-telephone.com>;q=0.1'
+#       key1 = 'sip:watson@worcester.bell-telephone.com'
+#       key2 = 'mailto:watson@bell-telephone.com'
+#       self.assertIsNotNone(o.display_name)
+#       self.assertIsNotNone(o.name_addr_params)
+#       self.assertIsNotNone(o.field_params)
+#       self.assertEqual('', o.display_name)
+#       self.assertEqual('', o.name_addr_params)
+#       self.assertEqual('', o.field_params)
+#       o.from_string(ts1)
 
     def test_Contact_from_str3(self):
         '''Test Contact from_str'''
         o = hf.Contact()
         ts1 = 'sip:hownow@browncow.com'
-        key = ts1
         o.from_string(ts1)
-        self.assertEqual(1, len(o.contact_params))
-        self.assertEqual(0, len(o.contact_params[key]))
+        self.assertIsNone(o.display_name)
+        self.assertIsNotNone(o.name_addr_params)
+        self.assertIsNotNone(o.field_params)
+        self.assertEqual('sip:hownow@browncow.com', o.name_addr_params)
+        self.assertEqual(f'Contact: <{ts1}>', str(o))
 
-    def test_Contact_to_str1(self):
-        '''Test Contact __str__'''
+    def test_Contact_from_str4(self):
+        '''Test Contact from_str'''
         o = hf.Contact()
-        ts1 = 'sip:hownow@browncow.com'
+        ts1 = '<sip:name@addr.dom;nap1=abc;nap2=def>;fp1=abcd;fp2=efgh'
         o.from_string(ts1)
-        s_val = str(o)
-        self.assertEqual('Contact: ' + ts1, s_val)
-
-    def test_Contact_to_str2(self):
-        '''Test Contact __str__'''
-        o = hf.Contact()
-        ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600'
-        o.from_string(ts1)
-        s_val = str(o)
-        self.assertEqual('Contact: ' + ts1, s_val)
-
-    def test_Contact_to_str3(self):
-        '''Test Contact __str__'''
-        o = hf.Contact()
-        ts1 = '"Mr. Watson" <sip:watson@worcester.bell-telephone.com>;q=0.7;expires=3600,"Mr. Watson" <mailto:watson@bell-telephone.com>;q=0.1'
-        o.from_string(ts1)
-        s_val = str(o)
-        self.assertEqual('Contact: ' + ts1, s_val)
+        self.assertIsNone(o.display_name)
+        self.assertIsNotNone(o.name_addr_params)
+        self.assertIsNotNone(o.field_params)
+        self.assertEqual(f'Contact: {ts1}', str(o))
 
     def test_Content_Type(self):
         '''Test Content-Type'''

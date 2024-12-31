@@ -63,13 +63,13 @@ def parse_registrations(reg_raw):
     return registrations
 
 @then('connect to server {uas_name} event socket')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, uas_name):
     global EVENT_SOCKET
     assert uas_name in context.test_servers
     logging.debug('events:connect event socket: server %s', uas_name)
     _, context.event_socket = \
-        await context.udp_transport.loop.create_connection(
+        await context.net_transport.loop.create_connection(
         lambda: EventSocket(),
         host=context.test_servers[uas_name][0], port=8021, flags=socket.TCP_NODELAY)
     context.event_socket.begin()
@@ -84,15 +84,15 @@ async def step_impl(context, uas_name):
     #EVENT_SOCKET.write('event plain CHANNEL_CALLSTATE')
 
 @then('do something in the background for a bit')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context):
     global BACKGROUND_LOOP, LOOP_TIMER
-    BACKGROUND_LOOP = context.udp_transport.loop
+    BACKGROUND_LOOP = context.net_transport.loop
     LOOP_TIMER = BACKGROUND_LOOP.time() + 1.0
     BACKGROUND_LOOP.call_at(LOOP_TIMER, background_task)
 
 @then('get channel info for current calls')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context):
     global SIP_CALLID
     while not EVENT_SOCKET.messages.empty():
@@ -126,7 +126,7 @@ async def step_impl(context):
     msg = await EVENT_SOCKET.messages.get()
 
 @then('get SIP call info for {user_name}')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, user_name):
     global SIP_CALLID
     user_protocol = context.sip_xport[user_name][1]
@@ -152,16 +152,16 @@ async def step_impl(context, user_name):
     #SIP_CALLID = user_reg['Call-ID']
 
 @then('send {num_messages} INFO to caller')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context, num_messages):
     global BACKGROUND_LOOP, LOOP_TIMER, LOOP_ITER
     LOOP_ITER = int(num_messages)
-    BACKGROUND_LOOP = context.udp_transport.loop
+    BACKGROUND_LOOP = context.net_transport.loop
     LOOP_TIMER = BACKGROUND_LOOP.time() + 1.0
     BACKGROUND_LOOP.call_at(LOOP_TIMER, background_task)
 
 @then('stop event background task')
-@async_run_until_complete(async_context='udp_transport')
+@async_run_until_complete(async_context='net_transport')
 async def step_impl(context):
     global LOOP_ITER
     LOOP_ITER = 0
