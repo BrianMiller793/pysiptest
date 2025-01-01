@@ -12,30 +12,36 @@ emulation of devices in complex multi-caller scenarios.
 ### Example
 
     Feature: Alice Makes Calls
-
+    
       Scenario: Alice calls Bob
-        Given Alice uses Squirrel350 phone
-        Given Bob uses Chipmunk5000 phone
-        When Alice calls Bob
-        Then Bob answers the phone
-        And Alice and Bob talk for 10 seconds
-        Then Bob hangs up the phone
-        Then Alice receives BYE
-
-      Scenario: Alice calls but Bob has DND set
-        Given Alice uses Squirrel350 phone
-        Given Bob uses Chipmunk5000 phone
-          And Status is set to DND
-        When Alice calls Bob
-        Then Alice talks to voicemail for 10 seconds
-        Then Alice hangs up the phone
-        Then Bob has voicemail waiting
+        Given Alice registers
+        Given Bob registers
+        Then pause for 1 seconds
+    
+        Then Bob expects a call
+        Then Alice calls Bob
+        Then Bob answers the call
+        Then pause for 300 seconds between Alice and Bob
+        Then Bob hangs up
+        Then pause for 1 seconds
 
 The Python step files contain functions implementing set up of the
 test environment and the user actions.  This allows the test to take
 action unavailable to SIPp, such as accessing APIs or databases.
 
-Copyright &copy; 2018-2023 Brian C. Miller<br>
+The endpoints function as asynchronous protocol factories, and handle
+message transport.  A Python
+[future](https://docs.python.org/3/library/asyncio-future.html) is used
+to pause Behave steps to wait for SIP events to occur.  SIP functionality
+can be extended directly in Behave steps, or integrated as part of the
+test stack `SipPhoneClient` class.
+
+The FreeSWITCH event socket handler is a bit rudimentary. The messages
+produced by the event socket do not use a uniform format, and the best
+practice is to shut off all messages, and then enable and parse just the
+messages that matter for your test.
+
+Copyright &copy; 2018-2025 Brian C. Miller<br>
 Open source license GNU General Public License version 3
 For non-commercial use.
 
@@ -47,10 +53,32 @@ The library uses Hatch for library configuration.
     python -m build
     pip install dist/pysiptest-0.0.1.tar.gz
 
+### Behave Layout
+
+#### `environment.py`
+
+The `environment.py` file handles the initial endpoint registration and
+provides various test variables. 
+
+`testusers.py` contains user information, along with various server addresses.
+Additions to SIP headers may be stored here, per user.
+
+Users can be stored in CSV format, and imported through the
+`import_init_udp_transport()` function. Use a Behave tag of `import`, such as
+`@import.myusers.csv`.
+
+Skip tests by using the `@skip` tag.
+
+An effort has been made to detect local host name and IP.  However, this is
+fallible, and may result in an exception.  The code has been used with Docker
+containers, tests hosts on a local private subnet, and connecting through
+an external IP.  The test SIP stack can handle `rport`, but NAT traversal
+for RTP has not been implemented.
+
 ### Motivation
 
-Creating SIP tests modeling smart phones using `sipp` is not easy, and very
-time consuming.  Registration for a receiving endpoint takes two completely
+Creating SIP tests modeling smart phones using `sipp` is tedious and messy.
+Registration for a receiving endpoint takes two completely
 diffeent scripts, because `sipp` must first be started as a client to
 register an endpoint port, and then a server to answer incoming calls.  On top
 of this, `sipp` crashes for reasons unknown.
@@ -65,8 +93,8 @@ or replay a PCAP file.
 
 ### TODO
 
-The project is under active development.  Refactoring is under way.  The base
-libraries seem stable for now.
+ * The project is under active development.
+ * RTP streams needs more work, and does not have NAT support.
 
 ## RFCs
 
