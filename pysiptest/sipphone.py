@@ -432,11 +432,16 @@ class AutoReply(KeepAlive):
             response.add_set_valid_field('Contact',
                 f'<sip:{self.user_info["extension"]}@'\
                 f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};transport={self.socket_typename}>')
-            support.insert_behave_fields(self.header_fields, response)
             # Aastra: Chedk for SDP message in UPDATE, return INVITE SDP minus sendrecv line
             if sip_method == 'UPDATE':
                 self.add_invite_sdp(response, sip_msg)
                 response.add_set_valid_field('Require', 'timer')
+                # Use Session-Expires from UAS
+                support.insert_behave_fields(
+                    {k:v for k,v in self.header_fields.items() if k!='Session-Expires'},
+                    response)
+            else:
+                support.insert_behave_fields(self.header_fields, response)
 
             response.sort()
             self.sendto(response)
@@ -799,7 +804,8 @@ class AutoAnswer(AutoReply):
         logging.debug('AutoAnswer:dial_183sessionprogress:Call-ID=%s', call_id)
         self.state_callback[call_id] = self.dial_callback
         self.dialog['uas_tag'] = fields.getfield('To')[0].split('=')[-1]
-        self.dialog['session_id'] = fields.getfield('Session-ID')[0]
+        if fields.getfield('Session-ID'):
+            self.dialog['session_id'] = fields.getfield('Session-ID')[0]
 
     def dial_487requestterminated(self):
         '''State machine callback for 487 Request Terminated.'''

@@ -136,7 +136,7 @@ def net_transport(context):
         if user['password'] is not None:
             logging.debug('fixture net_transport, user=%s', user['name'])
             task = async_context.loop.create_task(
-                init_udp_transport(context, async_context,
+                init_tcp_transport(context, async_context,
                     user_key, user))
             async_context.loop.run_until_complete(task)
     assert hasattr(context, 'sip_xport')

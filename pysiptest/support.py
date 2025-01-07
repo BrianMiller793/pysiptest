@@ -368,7 +368,7 @@ def available_ips():
             for ifname in socket.if_nameindex() if not ifname[1] == 'lo']
         if if_ip]
 
-def get_stun_address(server='stun.freeswitch.org'):
+def get_stun_address(server='stun1.l.google.com'):
     '''Get the external IP address based on stun. Requires stun utility.'''
     stun_out = subprocess\
         .run(f'stun {server} 1 -v', shell=True, capture_output=True, check=False)\

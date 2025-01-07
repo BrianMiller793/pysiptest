@@ -8,6 +8,6 @@ Feature: Dave Makes Calls
     Then Charlie expects a call
     Then Dave calls Charlie
     Then Charlie answers the call
-    Then pause for 300 seconds between Dave and Charlie
+    Then pause for 240 seconds between Dave and Charlie
     Then Charlie hangs up
     Then pause for 1 seconds

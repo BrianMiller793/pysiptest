@@ -128,6 +128,8 @@ async def step_impl(context, caller, receiver):
     assert_that(user_protocol.wait.result())\
         .described_as('__ calls __').is_true()
     user_protocol.wait = None
+    logging.debug('__ calls __:RTP')
+    user_protocol.rtp_endpoint.begin()
     # At this point the caller will be waiting for BYE
     context.pending_caller = caller
 
@@ -257,6 +259,8 @@ async def step_impl(context, name):
     assert_that(user_protocol.wait.result())\
         .described_as('__ answers the call').is_true()
     user_protocol.wait = None
+    logging.debug('answers the call %s:RTP', name)
+    user_protocol.rtp_endpoint.begin()
 
 @then('pause for {time} seconds between {caller} and {receiver}')
 @async_run_until_complete(async_context='net_transport')
