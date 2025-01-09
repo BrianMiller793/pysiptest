@@ -5,7 +5,7 @@ import socket
 import subprocess
 
 from pysiptest.sipphone import AutoAnswer
-from pysiptest.support import available_ips
+from pysiptest.support import available_ips, get_stun_address
 
 hostname_a = subprocess\
     .run('hostname -A', shell=True, capture_output=True, check=False)\
