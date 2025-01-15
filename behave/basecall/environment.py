@@ -44,6 +44,7 @@ async def init_udp_transport(
                 ka_refresh=20,
                 route_addr=aastra_route_addr,
                 sip_local_addr=aastra_sip_addr),
+            family=socket.AF_INET,
             remote_addr=td.TEST_SERVERS[user_info['server']])
     ROUTE_BOGUS_ADDR = (ROUTE_BOGUS_ADDR[0], ROUTE_BOGUS_ADDR[1]+5)
 
@@ -81,6 +82,7 @@ async def init_tcp_transport(
                 ka_refresh=20,
                 route_addr=aastra_route_addr,
                 sip_local_addr=aastra_sip_addr),
+            family=socket.AF_INET,
             host=td.TEST_SERVERS[user_info['server']][0],
             port=td.TEST_SERVERS[user_info['server']][1],
             flags=socket.TCP_NODELAY)

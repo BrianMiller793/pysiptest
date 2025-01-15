@@ -58,6 +58,7 @@ TEST_USERS = {
         'header_fields': {
             'Session-Expires': '1800',
             'Min-SE': '1800',
+            'Supported': '199,timer',
             'User-Agent': 'Teo Teo Fir V2 2.12.16.17.1 123abc456def'}},
     'Charlie': {
         'domain': server[0],

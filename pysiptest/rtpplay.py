@@ -23,7 +23,7 @@ class RtpPlay:
     '''Base datagram transport protocol for replay of pcap file.'''
     # pylint: disable=R0902
     def __init__(self, loop:asyncio.unix_events._UnixSelectorEventLoop,
-        on_con_lost:asyncio.Future=None, file_name:str=None):
+        on_con_lost:asyncio.Future=None, file_name:str=None, stun_addr=None):
         '''Class initialization.'''
         # on_con_lost: Future object for completion
         self.on_con_lost = on_con_lost
@@ -36,6 +36,7 @@ class RtpPlay:
         self.timestamp = 0
         self.dest_addr = None
         self.local_addr = None
+        self.stun_addr = stun_addr
         self.is_playing = True
 
         # pylint: disable=R1732
@@ -71,6 +72,11 @@ class RtpPlay:
                             found_rtp = True
                     except dpkt.UnpackError as _:
                         pass
+
+    @property
+    def sdp_sockname(self):
+        '''Represents either the local sockname or STUN sockname.'''
+        return self.stun_addr if self.stun_addr else self.local_addr
 
     def begin(self):
         '''Begin RTP stream.'''

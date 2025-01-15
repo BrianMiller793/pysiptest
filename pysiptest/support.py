@@ -82,7 +82,7 @@ def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60,
 def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
         rtp_socket:tuple, request_uri:str=None, header_fields=None, transport='UDP') \
         -> sipmsg.SipMessage:
-    '''Create INVITE for call
+    '''Create INVITE for call. Contact field must be set by caller.
 
     :param sock_addr: Local SIP socket address
     :param caller_info: Caller information, from context
@@ -105,6 +105,7 @@ def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
     invite.add_set_valid_field('Allow_Events', 'presence,dialog,message-summary,refer')
     invite.add_set_valid_field('Allow',
         'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    invite.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
 
     invite.field('From').from_string(
         f'{caller_info["name"]} <{caller_info["sipuri"]}>')
@@ -286,11 +287,11 @@ def sip_subscribe(from_user:dict, to_sipuri:str, request_uri:str,
     if call_id:
         subscribe.field('Call_ID').value = call_id
     subscribe.field('Event').value = event
+    subscribe.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
     if supported is not None:
         subscribe.add_set_valid_field('Supported', supported)
     subscribe.add_set_valid_field('Allow',
         'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
-    subscribe.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
     subscribe.add_set_valid_field('Expires', expires)
     insert_behave_fields(header_fields, subscribe)
     subscribe.sort()
@@ -333,11 +334,11 @@ def sip_publish(from_user:dict, request_uri:str, sockname:tuple,
     publish.field('Event').value = event
     if accept is not None:
         publish.add_set_valid_field('Accept', accept)
+    publish.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
     if supported is not None:
         publish.add_set_valid_field('Supported', supported)
     publish.add_set_valid_field('Allow',
         'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
-    publish.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
     if expires is not None:
         publish.add_set_valid_field('Expires', expires)
     publish.add_set_valid_field('Content_Type', 'application/pidf+xml')

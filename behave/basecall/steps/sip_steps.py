@@ -13,6 +13,7 @@
 
 from asyncio import sleep
 import logging
+import socket
 from assertpy import assert_that
 
 # pylint: disable=E0401,E0102,C0413,W0108
@@ -20,6 +21,7 @@ from assertpy import assert_that
 from pysiptest.rtpplay import RtpPlay
 from pysiptest import sipmsg
 from pysiptest import headerfield as hf
+from pysiptest import stunclient as sc
 
 from behave import given, then, step    # pylint: disable=E0611
 from behave.api.async_step import \
@@ -96,10 +98,14 @@ async def step_impl(context, caller, receiver):
     user_protocol = context.sip_xport[caller][1]
 
     # Create RTP playback endpoint
+    extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
     _, protocol = await context.net_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
-            file_name='sipp_call.pcap'),
-        local_addr=(context.test_localhostip, 0)) # server mode
+            file_name='sipp_call.pcap', stun_addr=extern_ip),
+        reuse_port=True,
+        family=socket.AF_INET,
+        local_addr=intern_ip) # server mode
+        #local_addr=(test_localhostip, 0)) # server mode
     assert protocol is not None
     user_protocol.rtp_endpoint = protocol
 
@@ -139,10 +145,13 @@ async def step_impl(context, caller, receiver, call_timeout):
     user_protocol = context.sip_xport[caller][1]
 
     # Create RTP playback endpoint
+    extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
     _, protocol = await context.net_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
-            file_name='sipp_call.pcap'),
-        local_addr=(context.test_localhostip, 0)) # server mode
+            file_name='sipp_call.pcap', stun_addr=extern_ip),
+        reuse_port=True,
+        family=socket.AF_INET,
+        local_addr=intern_ip) # server mode
     assert protocol is not None
     user_protocol.rtp_endpoint = protocol
 
@@ -228,12 +237,15 @@ async def step_impl(context, name):
     logging.debug('expects a call %s: wait=loop.create_future', name)
     user_protocol.wait = context.net_transport.loop.create_future()
     async_context = use_or_create_async_context(context, 'net_transport')
+    extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
     _, protocol = \
         await context.net_transport.loop.create_datagram_endpoint(
             # or RtpEcho
             lambda: RtpPlay(async_context.loop, on_con_lost=None,
-                file_name='sipp_call.pcap'),
-            local_addr=(context.test_localhostip, 0)) # server mode
+                file_name='sipp_call.pcap', stun_addr=extern_ip),
+            reuse_port=True,
+            family=socket.AF_INET,
+            local_addr=intern_ip) # server mode
 
     user_protocol.rtp_endpoint = protocol
     # SipPhone state machine should now be primed for INVITE

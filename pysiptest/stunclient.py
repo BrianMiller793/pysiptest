@@ -3,6 +3,8 @@
 
 from os import urandom
 import asyncio
+import ipaddress
+import socket
 import struct
 
 # Message header types
@@ -149,6 +151,7 @@ def decode_msgattr(msgattr, msgdata):
             rv = None
         case 0x0015:
             rv = None
+        # Skipping XOR-mapped address for now
         case 0x0020:
             rv = None
         case 0x8022:
@@ -163,25 +166,30 @@ def decode_msgattr(msgattr, msgdata):
 
 def decode_response(data):
     '''Decode response packet to tuple and remaining data.'''
+    assert len(data) > 19
     return struct.unpack('!HH16s', data[:20]), data[20:]
 
 def decode_addr(data):
     '''Decode a STUN address to string.'''
     # Returns Family, socket name tuple
-    chd = struct.unpack('!xBHBBBB', data)
-    return chd[0], (f'{chd[2]}.{chd[3]}.{chd[4]}.{chd[5]}', chd[1])
+    if data[1] == 1:
+        chd = struct.unpack('!xBHBBBB', data)
+        return chd[0], (f'{chd[2]}.{chd[3]}.{chd[4]}.{chd[5]}', chd[1])
+    chd = struct.unpack('!xBH16s', data)
+    return chd[0], (str(ipaddress.IPv6Network(chd[-1])), chd[1])
 
 class StunRfc3849Client():
     '''UDP protocol handlers for minimal RFC 3849 STUN.'''
     # RFC 3849, RFC 5389, RFC 8489
     # pylint: disable=R0902
-    def __init__(self, loop, done):
+    def __init__(self, loop, done, tests=None):
         ''' Initialize transport '''
         self.loop = loop
         self.done = done
-        self.unsent = asyncio.Queue()        # unset packets
-        self.pending = {}       # pending requests
-        self.responses = []     # response data
+        self.tests = [0, CHANGE_IP, CHANGE_PORT] if not tests else tests
+        self.unsent = asyncio.Queue()   # unset packets
+        self.pending = {}               # pending requests
+        self.responses = []             # response data
         self.transport = None
         self.local_address = None
         self.peer_address = None
@@ -220,12 +228,11 @@ class StunRfc3849Client():
 
     def connection_lost(self, exc): # pylint: disable=W0613
         ''' Handler for closing socket '''
-        self.transport.close()
 
     ###############
     def start_requests(self):
         '''Start sending sequence of BINDING_REQUEST packets to server.'''
-        for req_attrib in [0, CHANGE_IP, CHANGE_PORT]:
+        for req_attrib in self.tests:
             binding_req, x_id = encode_request(BINDING_REQUEST, CHANGE_REQUEST, req_attrib)
             self.pending[x_id] = binding_req
             self.sendto(binding_req)
@@ -259,16 +266,50 @@ class StunRfc3849Client():
             except asyncio.InvalidStateError:
                 pass
 
+async def get_stun_addr(
+    stun_srv='stun1.l.google.com', local_addr=None, tests=None, loop=None):
+    '''Get the STUN Mapped Address from a destination.
+    The local port is not closed.'''
+    loop = loop if loop else asyncio.get_running_loop()
+    done = loop.create_future()
+    tests = [0] if not tests else tests
+    _, protocol = await loop.create_datagram_endpoint(
+        lambda: StunRfc3849Client(loop, done, tests=tests),
+            reuse_port=True,
+            family=socket.AF_INET,
+            local_addr=local_addr,
+            remote_addr=(stun_srv, 3478))
+    try:
+        await done
+    finally:
+        # Normally transport.close() would be here,
+        # but this port is reused.
+        pass
+
+    if protocol.responses:
+        for resp in protocol.responses:
+            msg_attr, _, attr_data, next_attr = from_tlv(resp)
+            if msg_attr == MAPPED_ADDRESS:
+                return decode_msgattr(msg_attr, attr_data)[1], \
+                    protocol.local_address
+            while next_attr:
+                msg_attr, _, attr_data, next_attr = from_tlv(resp)
+                if msg_attr == MAPPED_ADDRESS:
+                    return decode_msgattr(msg_attr, attr_data)[1], \
+                        protocol.local_address
+    return None, None
+
 async def _main_async():
     '''Asynchronous main test.'''
     loop = asyncio.get_running_loop()
-
     done = loop.create_future()
+
     #server = 'stun.freeswitch.org'
     server = 'stun1.l.google.com'
 
     transport, protocol = await loop.create_datagram_endpoint(
         lambda: StunRfc3849Client(loop, done),
+            family=socket.AF_INET,
             remote_addr=(server, 3478))
 
     try:
@@ -290,11 +331,13 @@ def _test_decode_response(response:bytes):
 
 def _print_response_set(response):
     ''' Convert a data set in a response to text. '''
-    attr_type, _, attr_data, next_attr = from_tlv(response)
-    print(f'{msgattr_to_string(attr_type)} {decode_msgattr(attr_type, attr_data)}')
+    msg_attr, _, attr_data, next_attr = from_tlv(response)
+    print(f'{msg_attr}, {attr_data.hex()}')
+    print(f'{msgattr_to_string(msg_attr)} {decode_msgattr(msg_attr, attr_data)}')
     while next_attr:
-        attr_type, _, attr_data, next_attr = from_tlv(next_attr)
-        print(f'{msgattr_to_string(attr_type)} {decode_msgattr(attr_type, attr_data)}')
+        msg_attr, _, attr_data, next_attr = from_tlv(next_attr)
+        print(attr_data.hex())
+        print(f'{msgattr_to_string(msg_attr)} {decode_msgattr(msg_attr, attr_data)}')
 
 if __name__ == "__main__":
     asyncio.run(_main_async())

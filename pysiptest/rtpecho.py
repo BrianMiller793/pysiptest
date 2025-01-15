@@ -12,7 +12,7 @@ class RtpEcho:
     '''Base datagram transport protocol for delayed echo.'''
     # pylint: disable=R0902
     def __init__(self, loop:asyncio.unix_events._UnixSelectorEventLoop,
-        on_con_lost:asyncio.Future=None):
+        on_con_lost:asyncio.Future=None, stun_addr=None):
         '''Class initialization.'''
         self.loop = loop
         self.on_con_lost = on_con_lost
@@ -22,8 +22,14 @@ class RtpEcho:
         self.error_count = 0
         self.buffer_count = 0
         self.is_buffered = False
-        self.local_addr = None
         self.dest_addr = None
+        self.local_addr = None
+        self.stun_addr = stun_addr
+
+    @property
+    def sdp_sockname(self):
+        '''Represents either the local sockname or STUN sockname.'''
+        return self.stun_addr if self.stun_addr else self.local_addr
 
     def begin(self):
         '''Begin RTP stream.'''

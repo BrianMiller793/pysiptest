@@ -597,7 +597,7 @@ class AutoAnswer(AutoReply):
             f'<sip:{self.user_info["extension"]}@'\
             f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};transport={self.socket_typename}>')
         response.body = support.sip_sdp(username=self.user_info['name'],
-            sockname=self.rtp_endpoint.local_addr)
+            sockname=self.rtp_endpoint.sdp_sockname)
         response.add_set_valid_field('Content_Type', 'application/sdp')
         support.insert_behave_fields(self.header_fields, response)
         response.sort()
@@ -642,7 +642,7 @@ class AutoAnswer(AutoReply):
             f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};transport={self.socket_typename}>')
         indialog_ok.add_set_valid_field('Content_Type', 'application/sdp')
         indialog_ok.body = support.sip_sdp(username=self.user_info['name'],
-            sockname=self.rtp_endpoint.local_addr)
+            sockname=self.rtp_endpoint.sdp_sockname)
         support.insert_behave_fields(self.header_fields, indialog_ok)
         indialog_ok.sort()
         self.sendto(indialog_ok)
@@ -715,7 +715,7 @@ class AutoAnswer(AutoReply):
         logging.debug('AutoAnswer:dial()')
         invite = support.sip_invite(self.sip_local_addr,
             self.user_info, recipient,
-            self.rtp_endpoint.local_addr, header_fields=self.header_fields, \
+            self.rtp_endpoint.sdp_sockname, header_fields=self.header_fields, \
             transport=self.socket_typename)
         # lr parameter: RFC 3261, 19.1.1, p.151
         # According to Aastra trace, use address for receiver
