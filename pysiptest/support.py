@@ -73,8 +73,7 @@ def sip_register(sock_addr:tuple, userinfo:dict, expires:int=60,
     register.add_set_valid_field('Contact',
         f'<sip:{userinfo["extension"]}@{sock_addr[0]}:{sock_addr[1]};transport={transport}>')
     register.add_set_valid_field('Expires', expires)
-    register.add_set_valid_field('Allow',
-        'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    register.add_set_valid_field('Allow', ','.join(register.allowed))
     insert_behave_fields(header_fields, register)
     register.sort()
     return register
@@ -103,8 +102,7 @@ def sip_invite(sock_addr:tuple, caller_info:hash, receiver_info:hash,
     invite.add_set_valid_field('Content_Type', 'application/sdp')
     invite.add_set_valid_field('Accept', 'application/sdp')
     invite.add_set_valid_field('Allow_Events', 'presence,dialog,message-summary,refer')
-    invite.add_set_valid_field('Allow',
-        'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    invite.add_set_valid_field('Allow', ','.join(invite.allowed))
     invite.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
 
     invite.field('From').from_string(
@@ -133,8 +131,7 @@ def sip_ack(sdp_msg:str, userinfo:dict, addr:tuple, req_uri=None, \
     ack.init_from_msg(sdp_msg)
     ack.add_set_valid_field('Contact',
         f'<sip:{userinfo["extension"]}@{addr[0]}:{addr[1]};transport={transport}>')
-    ack.add_set_valid_field('Allow',
-        'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    ack.add_set_valid_field('Allow', ','.join(ack.allowed))
     ack.add_set_valid_field('Allow_Events', 'presence,dialog,message-summary,refer')
     ack.field('Via').via_params['transport'] = transport
     ack.field('CSeq').method = 'ACK'
@@ -169,8 +166,7 @@ def sip_bye(sdp_msg:str, userinfo:dict, addr:tuple, contact:str=None,
     bye.field('CSeq').value += 1
     bye.field('CSeq').method = bye.method
     bye.field('Call_ID').value = sdp_dict['Call-ID']
-    bye.add_set_valid_field('Allow',
-        'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    bye.add_set_valid_field('Allow', ','.join(bye.allowed))
     insert_behave_fields(header_fields, bye)
     bye.sort()
     return bye
@@ -198,8 +194,7 @@ def sip_options(userinfo:dict, svr_addr:tuple, local_addr:tuple,
     options.field('To').from_string(f'{userinfo["name"]} <{userinfo["sipuri"]}>')
     options.add_set_valid_field('Contact',
         f'<sip:{userinfo["extension"]}@{local_addr[0]}:{local_addr[1]};transport={transport}>')
-    #options.add_set_valid_field('Allow',
-    #    'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    #options.add_set_valid_field('Allow', ','.join(options.allowed))
     insert_behave_fields(header_fields, options)
     options.sort()
     return options
@@ -243,8 +238,7 @@ def sip_refer(from_user:dict, to_user:str,
     refer.field('Referred_By').value = \
         str(refer.field('Contact')).split(maxsplit=1)[-1]
     refer.add_set_valid_field('Event', 'refer')
-    refer.add_set_valid_field('Allow',
-        'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    refer.add_set_valid_field('Allow', ','.join(refer.allowed))
     insert_behave_fields(header_fields, refer)
     refer.sort()
     return refer
@@ -290,8 +284,7 @@ def sip_subscribe(from_user:dict, to_sipuri:str, request_uri:str,
     subscribe.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
     if supported is not None:
         subscribe.add_set_valid_field('Supported', supported)
-    subscribe.add_set_valid_field('Allow',
-        'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    subscribe.add_set_valid_field('Allow', ','.join(subscribe.allowed))
     subscribe.add_set_valid_field('Expires', expires)
     insert_behave_fields(header_fields, subscribe)
     subscribe.sort()
@@ -337,8 +330,7 @@ def sip_publish(from_user:dict, request_uri:str, sockname:tuple,
     publish.add_set_valid_field('Supported', 'eventlist, replaces, callerid')
     if supported is not None:
         publish.add_set_valid_field('Supported', supported)
-    publish.add_set_valid_field('Allow',
-        'ACK, BYE, CANCEL, INFO, INVITE, MESSAGE, NOTIFY, OPTIONS, REFER, SUBSCRIBE, UPDATE')
+    publish.add_set_valid_field('Allow', ','.join(publish.allowed))
     if expires is not None:
         publish.add_set_valid_field('Expires', expires)
     publish.add_set_valid_field('Content_Type', 'application/pidf+xml')

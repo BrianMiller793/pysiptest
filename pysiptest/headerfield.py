@@ -1421,6 +1421,7 @@ class Subject(HeaderField):
 class Supported(HeaderField):
     '''Enumerates all supported extensions. Sec 20.37'''
     # https://www.iana.org/assignments/sip-parameters/sip-parameters.xhtml
+    # "If empty, it means that no extensions are supported."
     #
     # Header field              where       proxy ACK BYE CAN INV OPT REG PRA SUB NOT REF PUB UPD
     # Supported                   R                -   o   o   m*  o   o   o   o   o   o   o   o
@@ -1439,6 +1440,7 @@ class Supported(HeaderField):
         super().__init__(value)
         self._shortname = 'k'
         self._longname = 'Supported'
+        self.value = value if value else ''
 
     @staticmethod
     def isvalid(msgtype, method):

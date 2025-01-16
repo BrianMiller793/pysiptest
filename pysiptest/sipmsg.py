@@ -3,7 +3,18 @@
 # vim: set ai ts=4 sw=4 expandtab:
 
 #import logging
+import inspect
+import sys
 import pysiptest.headerfield as hf
+
+def get_allowed():
+    '''Get list of defined methods. Implementation expected in client.'''
+    return [sc[0] for sc in \
+        inspect.getmembers(sys.modules[__name__],
+            predicate=lambda o: inspect.isclass(o) \
+                and issubclass(o, SipMessage) \
+                and not o is SipMessage) \
+        if not sc[0].startswith('Rfc')]
 
 class SipMessage():
     ''' Minimum SIP Request header '''
@@ -31,8 +42,17 @@ class SipMessage():
         '''
         self.sip_version = 'SIP/2.0' # p.28
         self.transport = None
+        self._allowed = None
+        self.supported = ''
         self.hdr_fields = []    # List of fields, may be ordered
         self._body = ''
+
+    @property
+    def allowed(self):
+        '''Return the methods defined in this message class and subclasses.'''
+        if not self._allowed:
+            self._allowed = get_allowed()
+        return self._allowed
 
     def field(self, field_name):
         '''Return the field object by name, or None.'''

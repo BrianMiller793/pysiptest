@@ -48,6 +48,7 @@ class SipPhoneClient:
             if 'sip_local_addr' in kwargs else None
         self.route_addr = kwargs['route_addr'] \
             if 'route_addr' in kwargs else None
+        self.supported = ''                 # SIP 'Supported' header field
         self.wait = None                    # General wait point
         self.transport = None
         self.sip_fragment = None            # fragment of message exceeding MTU
@@ -615,7 +616,7 @@ class AutoAnswer(AutoReply):
             self.loop.call_at(fire_at, self.answer_callback)
 
     def answer_indialog_invite(self, sip_msg:str):
-        '''Send the responses for an in-dialog INVITE message.'''
+        '''Send the responses for an in-dialog re-INVITE message.'''
         # RTP is already established, and isn't expected to change.
         logging.debug('AutoAnswer:answer_indialog_invite:Call-ID=%s', self.dialog['call_id'])
         response = sipmsg.Response(
