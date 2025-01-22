@@ -16,6 +16,8 @@ from pysiptest import sipmsg
 
 # pylint: disable=R0904,C0302
 
+logger = logging.getLogger()
+
 def rtp_sockname_from_sdp(sip_msg:str) -> tuple:
     '''Construct sockname from SDP message.'''
     fields = hf.HeaderFieldValues(sip_msg)
@@ -130,7 +132,7 @@ class SipPhoneClient:
         :retval str: Matching message, or None.'''
         for i in range(len(self.recvd_pkts)-1, -1, -1):
             msg_line = self.recvd_pkts[i].splitlines()[0].split()[0:2]
-            logging.debug('get_prev_rcvd:msg_line=%s', msg_line)
+            logger.debug('msg_line=%s', msg_line)
             if method in msg_line:
                 return copy.copy(self.recvd_pkts[i])
         return None
@@ -151,16 +153,16 @@ class SipPhoneClient:
         self.socket_type = transport.get_extra_info('socket').type
         self.socket_typename = 'UDP' if self.socket_type == socket.SOCK_DGRAM else 'TCP'
         if not self.sip_local_addr:
-            logging.debug('SipPhoneClient:connection_made, sip_local_addr=%s',
+            logger.debug('sip_local_addr=%s',
                 str(self.sip_local_addr))
             self.sip_local_addr = transport.get_extra_info('socket').getsockname()
         self.peer_addr = transport.get_extra_info('peername')
-        logging.debug('SipPhoneClient:connection_made, getsockname=%s, peer_addr=%s',
+        logger.debug('getsockname=%s, peer_addr=%s',
             str(transport.get_extra_info('socket').getsockname()), str(self.peer_addr))
 
     def connection_lost(self, exc):             # pylint: disable=W0613
         '''Base protcol: Called when a TCP/UDP connection is lost or closed.'''
-        logging.debug('SipPhoneClient:connection_lost')
+        logger.debug('')
         #self.sip_local_addr = None
         self.peer_addr = None
         if self.on_con_lost is not None:
@@ -168,21 +170,19 @@ class SipPhoneClient:
 
     def sipmsg_recvd(self, data):
         '''Common processing for a received SIP message.'''
-        logging.debug('SipPhoneClient:sipmsg_recvd')
         sip_msg = data.decode()
-        logging.debug('SipPhoneClient:sipmsg_recvd: len=%i sip_msg=%s', \
+        logger.debug('len=%i sip_msg=%s', \
             len(data), sip_msg)
         self.recvd_pkts.append(copy.copy(sip_msg))
         sip_fields = hf.HeaderFieldValues(sip_msg)
         if sip_fields.getfield('Call-ID')[0] in self.state_callback:
             callback = self.state_callback.pop(sip_fields.getfield('Call-ID')[0])
             assert hasattr(callback, '__call__')
-            logging.debug(
-                'SipPhoneClient:sipmsg_recvd:callback=%s, Call-ID=%s',
+            logger.debug('callback=%s, Call-ID=%s',
                 callback.__name__, sip_fields.getfield('Call-ID')[0])
             callback(sip_msg)
         else:
-            logging.debug('SipPhoneClient:sipmsg_recvd:rcv_queue')
+            logger.debug('rcv_queue')
             self.rcv_queue.put_nowait(copy.copy(sip_msg))
 
     ### UDP ###
@@ -193,19 +193,18 @@ class SipPhoneClient:
 
     def sendto(self, sip_msg:sipmsg.SipMessage):
         '''Send SIP message to UAS. Wraps transport.sendto()'''
-        logging.debug('SipPhoneClient:sendto')
-        logging.debug('SipPhoneClient:sendto: sipmsg=%s', str(sip_msg))
+        logger.debug('sipmsg=%s', str(sip_msg))
         self.sent_msgs.append(sip_msg)
         if self.socket_type == socket.SOCK_DGRAM:
-            logging.debug('SipPhoneClient:sendto:udp')
+            logger.debug('udp')
             self.transport.sendto(str(sip_msg).encode())
         else:
-            logging.debug('SipPhoneClient:sendto:tcp')
+            logger.debug('tcp')
             self.transport.write(str(sip_msg).encode())
 
     def error_received(self, exc):
         '''Datagram protcol: Called when an error is received.'''
-        logging.debug('SipPhoneClient:error_received: %s', str(exc))
+        logger.debug('%s', str(exc))
 
     ### TCP ###
     def data_received(self, data):
@@ -256,8 +255,8 @@ class RegisterUnregister(SipPhoneClient):
             f'<sip:{self.user_info["extension"]}@'\
             f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};'\
             f'transport={self.socket_typename};line={self.reg_contact_line}>;expires={expires}'
-        logging.debug('start_registration:field-Contact.value=%s', register.field('Contact').value)
-        logging.debug('start_registration:field-Contact.str=%s', str(register.field('Contact')))
+        logger.debug('field-Contact.value=%s', register.field('Contact').value)
+        logger.debug('field-Contact.str=%s', str(register.field('Contact')))
 
         self.state_callback[register.field('Call_ID').value] = \
             self.register_with_auth
@@ -267,7 +266,7 @@ class RegisterUnregister(SipPhoneClient):
 
     def register_with_auth(self, sip_msg:str):
         '''State machine: Register with Authentication.'''
-        logging.debug('SipPhoneClient:register_with_auth')
+        logger.debug('')
         assert isinstance(sip_msg, str)
         assert self.user_info is not None
         # The message *should* be a 401 or 407
@@ -283,7 +282,7 @@ class RegisterUnregister(SipPhoneClient):
                 self.received_rport = (self.received_rport[0],
                     int(via.via_params['rport']))
 
-            logging.debug('SipPhoneClient:register_with_auth:received_rport=%s',
+            logger.debug('received_rport=%s',
                 str(self.received_rport))
             self.route_addr = self.received_rport
 
@@ -299,21 +298,20 @@ class RegisterUnregister(SipPhoneClient):
 
     def registered(self, sip_msg:str):      # pylint: disable=W0613
         '''End state for registration, sets .wait'''
-        logging.debug('SipPhoneClient:registered')
+        logger.debug('')
         code = int(sipmsg.Response.get_code(sip_msg))
         self.is_registered = 200 <= code < 300 and self.expires != 0
         # The user *should* be waiting on this.
-        logging.debug('registered: self.wait= %s', 'None' if self.wait is None else 'not None')
+        logger.debug('self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
             self.wait.set_result(True)
 
     def start_unregistration(self):
         '''State machine: Unregister from UAS'''
-        logging.debug(
-            'start_unregistration: userinfo.extension=%s is_registered=%s',
+        logger.debug('userinfo.extension=%s is_registered=%s',
             self.user_info['extension'], str(self.is_registered))
         if not self.is_registered:
-            logging.debug('start_unregistration: self.wait= %s',
+            logger.debug('self.wait= %s',
                 'None' if self.wait is None else 'not None')
             if self.wait is not None:
                 self.wait.set_result(True)
@@ -327,7 +325,7 @@ class RegisterUnregister(SipPhoneClient):
         self.add_route_addr(unregister)
         unregister.branch = self.reg_branch
         unregister.field('Via').via_params['branch'] = self.reg_branch
-        logging.debug('start_unregistration:branch=%s', unregister.branch)
+        logger.debug('start_unregistration:branch=%s', unregister.branch)
         unregister.field('Expires').value = 0
         self.expires = 0
         unregister.field('CSeq').value = self.cseq_out_of_dialog
@@ -369,7 +367,7 @@ class KeepAlive(RegisterUnregister):
                 if not self.received_rport[0] or not self.received_rport[1] else self.received_rport
             self.options_msg = support.sip_options(self.user_info, addr, local_addr,
                 header_fields=self.header_fields, transport=self.socket_typename)
-            logging.debug('KeepAlive:connection_made:self.route_addr=%s', str(self.route_addr))
+            logger.debug('self.route_addr=%s', str(self.route_addr))
             self.add_route_addr(self.options_msg)
             self.options_msg.field('CSeq').value = self.cseq_out_of_dialog
             self.ka_branch = self.options_msg.field('Via').via_params['branch']
@@ -378,22 +376,22 @@ class KeepAlive(RegisterUnregister):
 
     def sipmsg_recvd(self, data):
         '''Datagram Protocol: intercept OK from UAS.'''
-        logging.debug('KeepAlive:sipmsg_recvd')
+        logger.debug('')
         msg_dict = hf.HeaderFieldValues(data.decode())
         if self.ka_branch is None or \
                 self.ka_branch not in msg_dict.getfield('Via')[0]:
-            logging.debug('KeepAlive:sipmsg_recvd, super()')
+            logger.debug('KeepAlive:sipmsg_recvd, super()')
             super().sipmsg_recvd(data)
         else:
-            logging.debug('KeepAlive:sipmsg_recvd:KeepAlive message')
+            logger.debug('KeepAlive message')
 
     def callback_event(self):
         '''This is event is fired to send the OPTIONS packet.'''
         if self.is_registered:
-            logging.debug('KeepAlive:connection_made:self.route_addr=%s', \
+            logger.debug('self.route_addr=%s', \
                 str(self.route_addr))
             self.add_route_addr(self.options_msg)
-            logging.debug('KeepAlive:callback_event:options_msg:Via %s', \
+            logger.debug('options_msg:Via %s', \
                 str(self.options_msg.field('Via')))
             self.sendto(self.options_msg)
             self.options_msg.field('CSeq').value = self.cseq_out_of_dialog
@@ -422,7 +420,7 @@ class AutoReply(KeepAlive):
         sip_msg = data.decode()
         sip_method = sip_msg.split(maxsplit=1)[0]
         if sip_method in self.auto_reply:
-            logging.debug('AutoReply:sipmsg_recvd: auto reply to %s', sip_method)
+            logger.debug('auto reply to %s', sip_method)
             # Append packet for later reference, respond, exit processing
             self.recvd_pkts.append(copy.copy(sip_msg))
             response = sipmsg.Response(prev_msg=sip_msg, status_code=200, reason_phrase='OK')
@@ -432,7 +430,8 @@ class AutoReply(KeepAlive):
             #    f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]}'
             response.add_set_valid_field('Contact',
                 f'<sip:{self.user_info["extension"]}@'\
-                f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};transport={self.socket_typename}>')
+                f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};'\
+                f'transport={self.socket_typename}>')
             # Aastra: Chedk for SDP message in UPDATE, return INVITE SDP minus sendrecv line
             if sip_method == 'UPDATE':
                 self.add_invite_sdp(response, sip_msg)
@@ -467,7 +466,7 @@ class AutoAnswer(AutoReply):
         :param rtp_endpoint: RTP endpoint object, for echo or playback
         '''
         super().__init__(**kwargs)
-        logging.debug('AutoAnswer:INITIALIZING')
+        logger.debug('')
         self.rtp_endpoint = kwargs['rtp_endpoint'] \
             if 'rtp_endpoint' in kwargs else None
         self.num_rings = kwargs['rings'] if 'rings' in kwargs else 1
@@ -477,21 +476,21 @@ class AutoAnswer(AutoReply):
 
     def sipmsg_recvd(self, data):
         '''Process datagram for INVITE or ACK.'''
-        logging.debug('AutoAnswer:sipmsg_recvd')
+        logger.debug('')
         if self.sip_fragment:
-            logging.debug('AutoAnswer:sipmsg_recvd:reassembling sip_msg')
+            logger.debug('reassembling sip_msg')
             data = self.sip_fragment + data
             self.sip_fragment = None
 
         # Definitely a fragment
         if not data.endswith(b'\r\n'):
             self.sip_fragment = data
-            logging.debug('AutoAnswer:sipmsg_recvd:fragmented:No CRLF')
+            logger.debug('fragmented:No CRLF')
             return
 
         sip_msg = data.decode()
         method = sip_msg.split(maxsplit=1)[0]
-        logging.debug('AutoAnswer:sipmsg_recvd:method=%s', method)
+        logger.debug('method=%s', method)
 
         fields = hf.HeaderFieldValues(sip_msg)
         # Content-Length is optional in UDP, mandatory for TCP
@@ -501,31 +500,34 @@ class AutoAnswer(AutoReply):
             body = fields.getfield('Body')[0]
             if body is None:
                 self.sip_fragment = data
-                logging.debug('AutoAnswer:sipmsg_recvd:fragmented:Body=None')
+                logger.debug('fragmented:Body=None')
                 return
 
             content_len = int(fields.getfield('Content-Length')[0])
             if len(body) != content_len:
                 self.sip_fragment = data
-                logging.debug('AutoAnswer:sipmsg_recvd:fragmented:content_len=%d, body_len=%d',content_len, len(body))
+                logger.debug('fragmented:content_len=%d, body_len=%d',
+                    content_len, len(body))
                 return
 
-        if method == 'INVITE':
-            if 'contact' not in self.dialog:
-                self.dialog['contact'] = fields.getfield('Contact')[0].strip('<>')
-            if 'call_id' in self.dialog:
-                # Answer in-dialog INVITE with TRYING - OK
-                if self.dialog['call_id'] == fields.getfield('Call-ID')[0]:
-                    self.state_callback[fields.getfield('Call-ID')[0]] = self.answer_indialog_invite
+        match method:
+            case 'INVITE':
+                if 'contact' not in self.dialog:
+                    self.dialog['contact'] = fields.getfield('Contact')[0].strip('<>')
+                if 'call_id' in self.dialog:
+                    # Answer in-dialog re-INVITE with TRYING - OK
+                    if self.dialog['call_id'] == fields.getfield('Call-ID')[0]:
+                        self.state_callback[fields.getfield('Call-ID')[0]] = \
+                            self.answer_indialog_invite
+                    else:
+                        logger.error('INVITE Call-ID not in dialog')
                 else:
-                    logging.error('AutoAnswer:sipmsg_recvd:INVITE Call-ID not in dialog')
-            else:
-                self.dialog['call_id'] = fields.getfield('Call-ID')[0]
-                self.state_callback[fields.getfield('Call-ID')[0]] = self.answer_invite
-        if method == 'BYE':
-            self.state_callback[fields.getfield('Call-ID')[0]] = self.bye_dialog
-        if method == 'CANCEL':
-            self.state_callback[fields.getfield('Call-ID')[0]] = self.cancel_dialog
+                    self.dialog['call_id'] = fields.getfield('Call-ID')[0]
+                    self.state_callback[fields.getfield('Call-ID')[0]] = self.answer_invite
+            case 'BYE':
+                self.state_callback[fields.getfield('Call-ID')[0]] = self.bye_dialog
+            case 'CANCEL':
+                self.state_callback[fields.getfield('Call-ID')[0]] = self.cancel_dialog
 
         self.sip_fragment = None
         super().sipmsg_recvd(data)
@@ -536,17 +538,17 @@ class AutoAnswer(AutoReply):
     def answer_invite(self, sip_msg:str):
         '''Send the responses for a received INVITE message.
         The RTP client must already be started.'''
-        logging.debug('AutoAnswer:answer_invite:Call-ID=%s', self.dialog['call_id'])
+        logger.debug('Call-ID=%s', self.dialog['call_id'])
         assert self.rtp_endpoint is not None
         # State:
         #  From: UAS user <sip:ext@dom>;tag=jfjfjfjf
         #  To: UAC user <sip:ext@dom>
         self.dialog['req_uri'] = sip_msg.split(maxsplit=2)[1]
-        logging.debug('AutoAnswer:answer_invite:INVITE, req_uri=%s',
+        logger.debug('INVITE, req_uri=%s',
             self.dialog['req_uri'])
         self.rtp_endpoint.dest_addr = rtp_sockname_from_sdp(sip_msg)
 
-        logging.debug('AutoAnswer:answer_invite:sending:Trying')
+        logger.debug('sending:Trying')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='100', reason_phrase='Trying')
         self.add_route_addr(response)
@@ -565,7 +567,7 @@ class AutoAnswer(AutoReply):
         self.dialog['uas_user'] = response.field('From').value
         self.dialog['uac_user'] = response.field('To').value
 
-        logging.debug('AutoAnswer:answer_invite:sending:Ringing')
+        logger.debug('sending:Ringing')
         for _ in range(self.num_rings):
             response = sipmsg.Response(
                 prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
@@ -576,17 +578,18 @@ class AutoAnswer(AutoReply):
             response.field('To').tag = self.dialog['uac_tag']
             response.add_set_valid_field('Contact',
                 f'<sip:{self.user_info["extension"]}@'\
-                f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};transport={self.socket_typename}>')
+                f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};'\
+                f'transport={self.socket_typename}>')
             support.insert_behave_fields(self.header_fields, response)
             response.sort()
             self.answer_queue.put_nowait(response)
 
         # pylint: disable=C0301
-        logging.debug('AutoAnswer:answer_invite:sending:Ringing:rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
+        logger.debug('sending:Ringing:rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
             str(self.rtp_endpoint.local_addr), str(self.rtp_endpoint.dest_addr))
         self.rtp_endpoint.begin()
 
-        logging.debug('AutoAnswer:answer_invite:sending:OK')
+        logger.debug('sending:OK')
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='200', reason_phrase='OK')
         self.add_route_addr(response)
@@ -618,7 +621,7 @@ class AutoAnswer(AutoReply):
     def answer_indialog_invite(self, sip_msg:str):
         '''Send the responses for an in-dialog re-INVITE message.'''
         # RTP is already established, and isn't expected to change.
-        logging.debug('AutoAnswer:answer_indialog_invite:Call-ID=%s', self.dialog['call_id'])
+        logger.debug('Call-ID=%s', self.dialog['call_id'])
         response = sipmsg.Response(
             prev_msg=sip_msg, status_code='100', reason_phrase='Trying')
         self.add_route_addr(response)
@@ -654,26 +657,25 @@ class AutoAnswer(AutoReply):
 
     def answer_indialog_ack(self, sip_msg:str):  # pylint: disable=W0613
         '''ACK state for in-dialog INVITE sequence, basically place holder'''
-        logging.debug('AutoAnswer:answer_indialog_ack:Call-ID=%s', self.dialog['call_id'])
+        logger.debug('Call-ID=%s', self.dialog['call_id'])
 
     def answer_ack(self, sip_msg:str):  # pylint: disable=W0613
         '''ACK state for received call'''
-        logging.debug('AutoAnswer:answer_ack:Call-ID=%s', self.dialog['call_id'])
+        logger.debug('Call-ID=%s', self.dialog['call_id'])
         self.in_a_call = True
-        logging.debug('answer_ack: self.wait= %s', 'None' if self.wait is None else 'not None')
+        logger.debug('self.wait= %s', 'None' if self.wait is None else 'not None')
         # The user *should* be waiting on this
         if self.wait is not None:
             try:
                 self.wait.set_result(True)
             except asyncio.InvalidStateError:
-                logging.warning(
-                    'AutoAnswer:answer_ack:set_result InvalidStateError:Call-ID=%s',
+                logger.warning('InvalidStateError:Call-ID=%s',
                     self.dialog['call_id'])
 
     def cancel(self):
         '''CANCEL active, incomplete INVITE dialog. Expect to receive OK, 487'''
         # Expect OK, expect 487
-        logging.debug('AutoAnswer:cancel():expecting 200')
+        logger.debug('expecting 200')
         invite_msg = self.get_prev_sent('INVITE')
         assert invite_msg is not None
 
@@ -692,7 +694,7 @@ class AutoAnswer(AutoReply):
         '''State machine callback for CANCEL INVITE sequence. Expect 200 response.'''
         code = sipmsg.Response.get_code(sip_msg)
         if code == '200':
-            logging.debug('AutoAnswer:cancel_callback():%s expected', code)
+            logger.debug('%s expected', code)
             self.state_callback[self.dialog['call_id']] = self.cancel_callback
         elif code == '487':
             cancel_ack = support.sip_ack(sip_msg, self.user_info,
@@ -702,18 +704,17 @@ class AutoAnswer(AutoReply):
             support.insert_behave_fields(self.header_fields, cancel_ack)
             self.sendto(cancel_ack)
         else:
-            logging.error('AutoAnswer:cancel_callback():%s unexpected', code)
+            logger.error('%s unexpected', code)
         if self.wait is not None:
             try:
                 self.wait.set_result(code == '200')
             except asyncio.InvalidStateError:
-                logging.warning(
-                    'AutoAnswer:answer_ack:set_result InvalidStateError:Call-ID=%s',
+                logger.warning('InvalidStateError:Call-ID=%s',
                     self.dialog['call_id'])
 
     def dial(self, recipient, route_addr=None):
         '''Initiate call to recipient (dialog). RTP must be ready.'''
-        logging.debug('AutoAnswer:dial()')
+        logger.debug('')
         invite = support.sip_invite(self.sip_local_addr,
             self.user_info, recipient,
             self.rtp_endpoint.sdp_sockname, header_fields=self.header_fields, \
@@ -725,18 +726,18 @@ class AutoAnswer(AutoReply):
         self.dialog['uac_user'] = invite.field('From').value
         self.dialog['uas_user'] = invite.field('To').value
         self.dialog['req_uri'] = invite.field('To').value.split('<')[-1].strip('<>')
-        logging.debug('AutoAnswer:dial:dialog:req_uri=%s',
+        logger.debug('dialog:req_uri=%s',
             self.dialog['req_uri'])
         self.dialog['uac_tag'] = invite.field('From').tag
-        logging.debug('AutoAnswer:dial:dialog.uac_tag=%s',
+        logger.debug('dialog.uac_tag=%s',
             self.dialog['uac_tag'])
 
         # Aastra
         invite.field('Contact').value = \
             f'<sip:{self.user_info["extension"]}@'\
             f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};transport={self.socket_typename}>'
-        logging.debug('AutoAnswer:dial():Contact.value=%s', invite.field('Contact').value)
-        logging.debug('AutoAnswer:dial():Contact.str=%s', str(invite.field('Contact')))
+        logger.debug('Contact.value=%s', invite.field('Contact').value)
+        logger.debug('Contact.str=%s', str(invite.field('Contact')))
         invite.field('CSeq').value = self.cseq_out_of_dialog
 
         self.state_callback[invite.field('Call_ID').value] = \
@@ -747,62 +748,65 @@ class AutoAnswer(AutoReply):
 
     def dial_callback(self, sip_msg:str):
         '''State machine callback for INVITE sequence. Expect response.'''
-        logging.debug('AutoAnswer:dial_callback')
+        logger.debug('')
         code = sip_msg.split(maxsplit=2)[1]
-        if code == '100':
-            self.dial_100trying(sip_msg)
-        elif code == '180':
-            self.dial_180ringing(sip_msg)
-        elif code == '181':
-            self.dial_181forwarded(sip_msg)
-        elif code == '182':
-            self.dial_182queued(sip_msg)
-        elif code == '183':
-            self.dial_183sessionprogress(sip_msg)
-        elif code == '200':
-            self.dial_200ok(sip_msg)
-        elif code == '407':
-            self.dial_407proxy_auth_req(sip_msg)
-        elif code == '487':
-            self.dial_487requestterminated()
-        elif code == '500':
-            self.dial_500servererror()
-        else:
-            logging.error('AutoAnswer:dial_callback:received %s', code)
+        match code:
+            case '100':
+                self.dial_100trying(sip_msg)
+            case '180':
+                self.dial_180ringing(sip_msg)
+            case '181':
+                self.dial_181forwarded(sip_msg)
+            case '182':
+                self.dial_182queued(sip_msg)
+            case '183':
+                self.dial_183sessionprogress(sip_msg)
+            case '200':
+                self.dial_200ok(sip_msg)
+            case '407':
+                self.dial_407proxy_auth_req(sip_msg)
+            case '487':
+                self.dial_487requestterminated()
+            case '500':
+                self.dial_500servererror()
+            case _:
+                logger.error('received %s', code)
+                if self.wait is not None:
+                    self.wait.set_result(False)
 
     def dial_100trying(self, sip_msg:str):
         '''State machine callback for 100 Trying.'''
         fields = hf.HeaderFieldValues(sip_msg)
         call_id = fields.getfield('Call-ID')[0]
-        logging.debug('AutoAnswer:dial_100trying:Call-ID=%s', call_id)
+        logger.debug('Call-ID=%s', call_id)
         self.state_callback[call_id] = self.dial_callback
 
     def dial_180ringing(self, sip_msg:str):
         '''State machine callback for 180 Ringing.'''
         fields = hf.HeaderFieldValues(sip_msg)
         call_id = fields.getfield('Call-ID')[0]
-        logging.debug('AutoAnswer:dial_180ringing:Call-ID=%s', call_id)
+        logger.debug('Call-ID=%s', call_id)
         self.state_callback[call_id] = self.dial_callback
 
     def dial_181forwarded(self, sip_msg:str):
         '''State machine callback for 181 Call Is Being Fowarded.'''
         fields = hf.HeaderFieldValues(sip_msg)
         call_id = fields.getfield('Call-ID')[0]
-        logging.debug('AutoAnswer:dial_181forwarded:Call-ID=%s', call_id)
+        logger.debug('Call-ID=%s', call_id)
         self.state_callback[call_id] = self.dial_callback
 
     def dial_182queued(self, sip_msg:str):
         '''State machine callback for 182 Queued.'''
         fields = hf.HeaderFieldValues(sip_msg)
         call_id = fields.getfield('Call-ID')[0]
-        logging.debug('AutoAnswer:dial_182queued:Call-ID=%s', call_id)
+        logger.debug('Call-ID=%s', call_id)
         self.state_callback[call_id] = self.dial_callback
 
     def dial_183sessionprogress(self, sip_msg:str):
         '''State machine callback for 183 Session Progress.'''
         fields = hf.HeaderFieldValues(sip_msg)
         call_id = fields.getfield('Call-ID')[0]
-        logging.debug('AutoAnswer:dial_183sessionprogress:Call-ID=%s', call_id)
+        logger.debug('Call-ID=%s', call_id)
         self.state_callback[call_id] = self.dial_callback
         self.dialog['uas_tag'] = fields.getfield('To')[0].split('=')[-1]
         if fields.getfield('Session-ID'):
@@ -810,23 +814,23 @@ class AutoAnswer(AutoReply):
 
     def dial_487requestterminated(self):
         '''State machine callback for 487 Request Terminated.'''
-        logging.debug('AutoAnswer:dial_487requestterminated')
+        logger.debug('')
         # No further processing
         if self.wait is not None:
-            logging.debug('dial_487requestterminated: wait.set_result(False)')
+            logger.debug('wait.set_result(False)')
             self.wait.set_result(False)
 
     def dial_500servererror(self):
         '''State machine callback for 500 Server Error.'''
-        logging.error('AutoAnswer:dial_500servererror')
+        logger.error('')
         # No further processing
         if self.wait is not None:
-            logging.error('dial_500servererror: wait.set_result(False)')
+            logger.error('wait.set_result(False)')
             self.wait.set_result(False)
 
     def dial_407proxy_auth_req(self, sip_msg:str):
         '''State machine callback for 407 Proxy Authentication Required.'''
-        logging.debug('AutoAnswer:dial_407proxy_auth_req')
+        logger.debug('')
         sip_fields = hf.HeaderFieldValues(sip_msg)
         # RFC 8760 - there may be more than one authenticate
         assert 'Proxy-Authenticate' in sip_fields.field_names
@@ -844,7 +848,7 @@ class AutoAnswer(AutoReply):
         # If the previous INVITE failed with an Authorization, fail here too
         if invite.field('Authorization'):
             self.wait.set_result(False)
-            logging.error('dial_407proxy_auth_req:FAILED AUTHORIZATION')
+            logger.error('dial_407proxy_auth_req:FAILED AUTHORIZATION')
             return
 
         invite.field('CSeq').value = self.cseq_out_of_dialog
@@ -860,18 +864,18 @@ class AutoAnswer(AutoReply):
         '''State machine callback for 200 OK w/SDP, respond with ACK'''
         # Get destination RTP endpoint
         self.rtp_endpoint.dest_addr = rtp_sockname_from_sdp(sip_msg)
-        logging.debug('AutoAnswer:dial_200ok:rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
+        logger.debug('rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
             str(self.rtp_endpoint.local_addr), str(self.rtp_endpoint.dest_addr))
         self.rtp_endpoint.begin()
 
         fields = hf.HeaderFieldValues(sip_msg)
         call_id = fields.getfield('Call-ID')[0]
-        logging.debug('AutoAnswer:dial_200ok:Call-ID=%s', call_id)
+        logger.debug('Call-ID=%s', call_id)
 
         self.dialog['req_uri'] = fields.getfield('Contact')[0].strip('<>')
-        logging.debug('AutoAnswer:dial_200ok:dialog:req_uri=%s', self.dialog['req_uri'])
+        logger.debug('dialog:req_uri=%s', self.dialog['req_uri'])
         self.dialog['uas_tag'] = fields.getfield('To')[0].split(';')[-1].split('=')[-1]
-        logging.debug('AutoAnswer:dial_200ok:dialog_tag=%s', self.dialog['uas_tag'])
+        logger.debug('dialog_tag=%s', self.dialog['uas_tag'])
 
         # Send ACK
         self.in_a_call = True
@@ -882,14 +886,14 @@ class AutoAnswer(AutoReply):
         support.insert_behave_fields(self.header_fields, ack)
         self.sendto(ack)
         # The user *should* be waiting on this.
-        logging.debug('dial_200ok: self.wait= %s', 'None' if self.wait is None else 'not None')
+        logger.debug('dial_200ok: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
-            logging.debug('dial_200ok: wait.set_result(True)')
+            logger.debug('dial_200ok: wait.set_result(True)')
             self.wait.set_result(True)
 
     def hangup(self):
         '''Initiate end connection. Send BYE, wait for OK.'''
-        logging.debug('AutoAnswer:hangup')
+        logger.debug('')
         assert 'call_id' in self.dialog
         assert 'req_uri' in self.dialog
         assert 'contact' in self.dialog
@@ -923,16 +927,16 @@ class AutoAnswer(AutoReply):
 
     def bye_200ok(self, sip_msg:str):   # pylint: disable=W0613
         '''Response from UAS after sending BYE.'''
-        logging.debug('AutoAnswer:bye_200ok')
+        logger.debug('')
         self.clear_endpoint()
         # The user *should* be waiting on this.
-        logging.debug('bye_200ok: self.wait= %s', 'None' if self.wait is None else 'not None')
+        logger.debug('bye_200ok: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
             self.wait.set_result(True)
 
     def bye_dialog(self, sip_msg:str):
         '''Received request from UAS to end dialog.'''
-        logging.debug('AutoAnswer:bye_dialog')
+        logger.debug('bye_dialog')
         bye_resp = sipmsg.Response(prev_msg=sip_msg, status_code=200, reason_phrase='OK')
         self.add_route_addr(bye_resp)
         bye_resp.field('Via').value = None
@@ -949,13 +953,13 @@ class AutoAnswer(AutoReply):
         # A user may, or may not, be waiting on the BYE.
         # This can happen in the background of a task, and the `wait` may
         # be None.
-        logging.debug('bye_dialog: self.wait= %s', 'None' if self.wait is None else 'not None')
+        logger.debug('bye_dialog: self.wait= %s', 'None' if self.wait is None else 'not None')
         if self.wait is not None:
             self.wait.set_result(True)
 
     def cancel_dialog(self, sip_msg:str):
         '''Received request from UAS to cancel INVITE. Send OK, then 487'''
-        logging.debug('AutoAnswer:cancel_dialog')
+        logger.debug('')
         self.answer_queue = asyncio.Queue() # Dump queued answering packets
 
         # 200 for CANCEL
@@ -995,21 +999,21 @@ class AutoAnswer(AutoReply):
 
     def cancel_ack(self, sip_msg:str):  # pylint: disable=W0613
         '''ACK state for canceled call'''
-        logging.debug('AutoAnswer:cancel_ack:Call-ID=%s', self.dialog['call_id'])
+        logger.debug('Call-ID=%s', self.dialog['call_id'])
         self.in_a_call = False
-        logging.debug('answer_ack: self.wait= %s', 'None' if self.wait is None else 'not None')
+        logger.debug('self.wait= %s', 'None' if self.wait is None else 'not None')
         # The user *should* be waiting on this
         if self.wait is not None:
             try:
                 self.wait.set_result(True)
             except asyncio.InvalidStateError:
-                logging.warning(
-                    'AutoAnswer:answer_ack:set_result InvalidStateError:Call-ID=%s',
+                logger.warning(
+                    'set_result InvalidStateError:Call-ID=%s',
                     self.dialog['call_id'])
 
     def clear_endpoint(self):
         '''End state, clear endpoint data.'''
-        logging.debug('AutoAnswer:clear_endpoint')
+        logger.debug('AutoAnswer:clear_endpoint')
         self.rtp_endpoint.end()
         self.in_a_call = False
         self.dialog = {}

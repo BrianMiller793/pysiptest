@@ -7,6 +7,8 @@ import inspect
 import sys
 import pysiptest.headerfield as hf
 
+#logger = logging.getLogger()
+
 def get_allowed():
     '''Get list of defined methods. Implementation expected in client.'''
     return [sc[0] for sc in \
@@ -72,7 +74,7 @@ class SipMessage():
     def body(self, bvalue):
         '''Set the value of SIP message body.'''
         self._body = bvalue
-        #logging.debug('SipMessage %s', str(self.hdr_fields))
+        #logger.debug('SipMessage %s', str(self.hdr_fields))
         assert self.field('Content_Length') is not None
         self.field('Content_Length').value = len(bvalue)
 

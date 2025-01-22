@@ -12,6 +12,8 @@ from time import time
 import dpkt
 import ntplib
 
+logger = logging.getLogger()
+
 def short(sys_time):
     '''Convert system time to NTP short format.'''
     ntp_time = ntplib.system_to_ntp_time(sys_time)
@@ -80,27 +82,27 @@ class RtpPlay:
 
     def begin(self):
         '''Begin RTP stream.'''
-        logging.debug('RtpPlay:begin')
+        logger.debug('RtpPlay:begin')
         self.fire_at = self.loop.time() + 0.02
         self.timestamp = short(time())
         self.loop.call_at(self.fire_at, self.callback_event)
 
     def end(self):
         '''End RTP stream.'''
-        logging.debug('RtpPlay:end')
+        logger.debug('RtpPlay:end')
         self.is_playing = False
         self.transport.close()
         # Interface place holder.
 
     def connection_made(self, transport):
         '''Base transport'''
-        logging.debug('RtpPlay:connection_made')
+        logger.debug('RtpPlay:connection_made')
         self.transport = transport
         self.local_addr = transport.get_extra_info('socket').getsockname()
 
     def connection_lost(self, exc):
         '''Base transport'''
-        logging.debug('RtpPlay:connection_lost: %s', str(exc))
+        logger.debug('RtpPlay:connection_lost: %s', str(exc))
         if self.on_con_lost:
             self.on_con_lost.set_result(True)
         self.is_playing = False
@@ -111,7 +113,7 @@ class RtpPlay:
 
     def error_received(self, exc):
         '''Error handler for protocol.'''
-        logging.error('RtpPlay:error_received: %s', str(exc))
+        logger.error('RtpPlay:error_received: %s', str(exc))
         # self.transport.close()
 
     def callback_event(self):

@@ -8,6 +8,8 @@ RFC 1889 - obsoleted by 3550
 import asyncio
 import logging
 
+logger = logging.getLogger()
+
 class RtpEcho:
     '''Base datagram transport protocol for delayed echo.'''
     # pylint: disable=R0902
@@ -41,13 +43,13 @@ class RtpEcho:
 
     def connection_made(self, transport):
         '''Base transport'''
-        logging.debug('RtpEcho:connection_made')
+        logger.debug('RtpEcho:connection_made')
         self.transport = transport
         self.local_addr = transport.get_extra_info('socket').getsockname()
 
     def connection_lost(self, exc):
         '''Base transport'''
-        logging.debug('RtpEcho:connection_lost: %s', str(exc))
+        logger.debug('RtpEcho:connection_lost: %s', str(exc))
         if self.on_con_lost:
             self.on_con_lost.set_result(True)
 
@@ -68,10 +70,10 @@ class RtpEcho:
 
     def error_received(self, exc):
         '''Error handler for protocol.'''
-        logging.error('RtpEcho:error_received: %s', str(exc))
+        logger.error('RtpEcho:error_received: %s', str(exc))
         self.error_count += 1
         if self.error_count > 4:
-            logging.error('RtpEcho:error_received:closing')
+            logger.error('RtpEcho:error_received:closing')
             self.transport.close()
 
     def callback_event(self):

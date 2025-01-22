@@ -1,7 +1,6 @@
 '''Define steps for presence routing tests.'''
 
 from asyncio import sleep
-#import logging
 import os
 import subprocess
 from assertpy import assert_that
@@ -63,7 +62,7 @@ async def step_impl(context, name):
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
 #    if not user_protocol.is_registered:
-#        logging.debug('step presroute: %s is registered and waiting: wait=loop.create_future()', name)
+#        context.logger.debug('step presroute: %s is registered and waiting: wait=loop.create_future()', name)
 #        user_protocol.wait = context.net_transport.loop.create_future()
 #        user_protocol.start_registration()
 #        if not user_protocol.wait.done():

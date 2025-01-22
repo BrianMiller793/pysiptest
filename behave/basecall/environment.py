@@ -17,6 +17,7 @@ import testusers as td
 # pylint: disable=W0603
 ROUTE_BOGUS_ADDR = ('64.19.65.25', 2525)
 SIPVIA_BOGUS_ADDR = ('192.168.4.214', 4242)
+LOGGER = None
 
 async def init_udp_transport(
     context, async_context, user_name, user_info):
@@ -28,7 +29,7 @@ async def init_udp_transport(
     :param user_info:
     '''
     global ROUTE_BOGUS_ADDR
-    logging.debug('init_udp_transport, user_name=%s, server_name=%s, addr=%s',
+    LOGGER.debug('init_udp_transport, user_name=%s, server_name=%s, addr=%s',
         user_name, user_info['server'], td.TEST_SERVERS[user_info['server']])
     aastra_route_addr = ROUTE_BOGUS_ADDR if user_name == 'x_wunderbaum' \
         else td.TEST_SERVERS[user_info['server']]
@@ -52,7 +53,7 @@ async def init_udp_transport(
         context.sip_xport = {}
     context.sip_xport[user_name] = (transport, protocol)
     # Testing Aastra and rules
-    logging.debug('init_udp_transport:sip_xport..sip_local_addr=%s',
+    LOGGER.debug('init_udp_transport:sip_xport..sip_local_addr=%s',
         context.sip_xport[user_name][1].sip_local_addr)
     await register_user(context, user_name)
 
@@ -66,7 +67,7 @@ async def init_tcp_transport(
     :param user_info:
     '''
     global ROUTE_BOGUS_ADDR
-    logging.debug('init_tcp_transport, user_name=%s, server_name=%s, addr=%s',
+    LOGGER.debug('init_tcp_transport, user_name=%s, server_name=%s, addr=%s',
         user_name, user_info['server'], td.TEST_SERVERS[user_info['server']])
     aastra_route_addr = ROUTE_BOGUS_ADDR if user_name == 'x_wunderbaum' \
         else td.TEST_SERVERS[user_info['server']]
@@ -92,7 +93,7 @@ async def init_tcp_transport(
         context.sip_xport = {}
     context.sip_xport[user_name] = (transport, protocol)
     # Testing Aastra and rules
-    logging.debug('init_tcp_transport:sip_xport..sip_local_addr=%s',
+    LOGGER.debug('init_tcp_transport:sip_xport..sip_local_addr=%s',
         context.sip_xport[user_name][1].sip_local_addr)
     await register_user(context, user_name)
 
@@ -108,7 +109,7 @@ async def register_user(context, name):
     user_protocol.start_registration(expires=600)
     await user_protocol.wait
     user_protocol.wait = None
-    logging.debug('register_user:%s:is_registered=%s', name, user_protocol.is_registered)
+    LOGGER.debug('register_user:%s:is_registered=%s', name, user_protocol.is_registered)
 
 async def unregister_user(context, name):
     '''Unregister a user after a scenario.
@@ -117,7 +118,7 @@ async def unregister_user(context, name):
     :param name: User name to unregister.
     '''
     user_protocol = context.sip_xport[name][1]
-    logging.debug('unregister_user:%s:is_registered=%s', name, user_protocol.is_registered)
+    LOGGER.debug('unregister_user:%s:is_registered=%s', name, user_protocol.is_registered)
     if user_protocol.is_registered:
         user_protocol.wait = context.net_transport.loop.create_future()
         user_protocol.start_unregistration()
@@ -136,7 +137,7 @@ def net_transport(context):
     # Create the task for the client
     for user_key, user in td.TEST_USERS.items():
         if user['password'] is not None:
-            logging.debug('fixture net_transport, user=%s', user['name'])
+            LOGGER.debug('fixture net_transport, user=%s', user['name'])
             task = async_context.loop.create_task(
                 init_tcp_transport(context, async_context,
                     user_key, user))
@@ -144,35 +145,35 @@ def net_transport(context):
     assert hasattr(context, 'sip_xport')
 
     yield getattr(context, 'sip_xport')
-    logging.debug('net_transport sip_xport.keys=%s', context.sip_xport.keys())
+    LOGGER.debug('net_transport sip_xport.keys=%s', context.sip_xport.keys())
     for xport in context.sip_xport.values():
         xport[0].close()
 
 @fixture
 def test_hostname(context):
     '''Provide test user data for tests.'''
-    logging.debug('context.test_hostname=%s', td.TEST_HOSTNAME)
+    LOGGER.debug('context.test_hostname=%s', td.TEST_HOSTNAME)
     context.test_hostname = td.TEST_HOSTNAME
     yield context.test_hostname
 
 @fixture
 def test_hostip(context):
     '''Provide test user data for tests.'''
-    logging.debug('context.test_hostip=%s', td.TEST_HOSTIP)
+    LOGGER.debug('context.test_hostip=%s', td.TEST_HOSTIP)
     context.test_hostip = td.TEST_HOSTIP
     yield context.test_hostip
 
 @fixture
 def test_localhostip(context):
     '''Provide test user data for tests.'''
-    logging.debug('context.test_localhostip=%s', td.TEST_LOCALHOSTIP)
+    LOGGER.debug('context.test_localhostip=%s', td.TEST_LOCALHOSTIP)
     context.test_localhostip = td.TEST_LOCALHOSTIP
     yield context.test_localhostip
 
 @fixture
 def test_localhostname(context):
     '''Provide test user data for tests.'''
-    logging.debug('context.test_localhostname=%s', td.TEST_LOCALHOSTNAME)
+    LOGGER.debug('context.test_localhostname=%s', td.TEST_LOCALHOSTNAME)
     context.test_localhostname = td.TEST_LOCALHOSTNAME
     yield context.test_localhostname
 
@@ -187,6 +188,11 @@ def test_servers(context):
     '''Provide server data for tests.`'''
     context.test_servers = td.TEST_SERVERS
     yield context.test_servers
+
+@fixture(name=logger)
+def logger(context):
+    context.logger = LOGGER
+    return context.logger
 
 ###########################################
 def import_init_udp_transport(context, import_file_name):
@@ -211,6 +217,15 @@ def import_init_udp_transport(context, import_file_name):
             async_context.loop.run_until_complete(task)
 
 ###########################################
+def before_all(context):
+    '''Set up configuration'''
+    global LOGGER
+    context.config.logging_format = '%(asctime)s.%(msecs)03d %(levelname)-8s [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
+    context.config.logging_datefmt='%Y-%m-%d:%H:%M:%S'
+    context.config.setup_logging()
+    LOGGER = logging.getLogger()
+    LOGGER.debug('before_all')
+
 def before_tag(context, tag):
     '''Perform actions specific to tags.'''
     if tag.startswith('import.'):
@@ -234,23 +249,23 @@ def before_scenario(context, scenario):
 
 def before_feature(context, feature): # pylint: disable=W0613
     '''Set up test context.'''
-    logging.debug('before_feature:net_transport')
+    LOGGER.debug('before_feature:net_transport')
     use_fixture(net_transport, context)
 
 # pylint: disable=W0613
 def after_feature(context, feature):
     '''Unregister users after feature completed.'''
-    logging.debug('after_feature')
+    LOGGER.debug('after_feature')
     async_context = use_or_create_async_context(context, 'net_transport')
     for user_key, user in td.TEST_USERS.items():
-        logging.debug('after_feature, user=%s', user_key)
+        LOGGER.debug('after_feature, user=%s', user_key)
         if user['password'] is not None:
             if hasattr(context, 'sip_xport') and \
                 hasattr(context.sip_xport[user_key][1], 'rtp_endpoint') and \
                 context.sip_xport[user_key][1].rtp_endpoint:
-                logging.debug('after_feature, context rtp_endpoint.end()')
+                LOGGER.debug('after_feature, context rtp_endpoint.end()')
                 context.sip_xport[user_key][1].rtp_endpoint.end()
-            logging.debug('after_feature, unregister user=%s', user_key)
+            LOGGER.debug('after_feature, unregister user=%s', user_key)
             task = async_context.loop.create_task(
                 unregister_user(context, user_key))
             async_context.loop.run_until_complete(task)

@@ -12,7 +12,6 @@
 #           obsoleted by 6665
 
 from asyncio import sleep
-import logging
 import socket
 from assertpy import assert_that
 
@@ -36,7 +35,6 @@ async def wait_for_response(protocol, expected_codes):
     if not protocol.wait.done():
         response = await protocol.rcv_queue.get()
     while response is not None:
-        logging.debug('wait_for_response: received %s', sipmsg.Response.get_code(response))
         code = int(sipmsg.Response.get_code(response))
         if code in expected_codes:
             return response
@@ -61,7 +59,7 @@ async def step_impl(context, name):
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
     if not user_protocol.is_registered:
-        logging.debug('step registers %s: wait=loop.create_future()', name)
+        context.logger.debug('step registers %s: wait=loop.create_future()', name)
         user_protocol.wait = context.net_transport.loop.create_future()
         user_protocol.start_registration()
         if not user_protocol.wait.done():
@@ -77,7 +75,7 @@ async def step_impl(context, name):
     assert 'sip_xport' in context
     assert name in context.sip_xport
     user_protocol = context.sip_xport[name][1]
-    logging.debug('step registers %s: wait=loop.create_future()', name)
+    context.logger.debug('step registers %s: wait=loop.create_future()', name)
     user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.start_registration()
     if not user_protocol.wait.done():
@@ -109,19 +107,19 @@ async def step_impl(context, caller, receiver):
     assert protocol is not None
     user_protocol.rtp_endpoint = protocol
 
-    logging.debug('%s calls %s: wait=loop.create_future()', caller, receiver)
+    context.logger.debug('%s calls %s: wait=loop.create_future()', caller, receiver)
     user_protocol.wait = context.net_transport.loop.create_future()
     if receiver in context.test_users:
         # Aastra 400
-        logging.debug('%s calls %s: caller sockname=%s',
+        context.logger.debug('%s calls %s: caller sockname=%s',
             caller, receiver, context.sip_xport[caller][0].get_extra_info('socket').getsockname())
-        logging.debug('%s calls %s: receiver sockname=%s',
+        context.logger.debug('%s calls %s: receiver sockname=%s',
             caller, receiver, context.sip_xport[receiver][0].get_extra_info('socket').getsockname())
         user_protocol.dial(context.test_users[receiver])#,
             #route_addr=context.sip_xport[caller][0].get_extra_info('socket').getsockname())
             #route_addr=context.test_servers[context.test_users[receiver]['server']])
     else:
-        logging.debug('%s calls %s: receiver NOT in context.test_users', caller, receiver)
+        context.logger.debug('%s calls %s: receiver NOT in context.test_users', caller, receiver)
         extension = {
         'domain': 'teo',
         'name': 'NoneGiven',
@@ -134,7 +132,7 @@ async def step_impl(context, caller, receiver):
     assert_that(user_protocol.wait.result())\
         .described_as('__ calls __').is_true()
     user_protocol.wait = None
-    logging.debug('__ calls __:RTP')
+    context.logger.debug('__ calls __:RTP')
     user_protocol.rtp_endpoint.begin()
     # At this point the caller will be waiting for BYE
     context.pending_caller = caller
@@ -158,14 +156,14 @@ async def step_impl(context, caller, receiver, call_timeout):
     if receiver in context.test_users:
         user_protocol.dial(context.test_users[receiver])
     else:
-        logging.debug('calls %s, %s: receiver NOT in context.test_users', caller, receiver)
+        context.logger.debug('calls %s, %s: receiver NOT in context.test_users', caller, receiver)
         extension = {
         'domain': 'teo',
         'name': 'NoneGiven',
         'extension': receiver,
         'sipuri': f'sip:{receiver}@teo'}
         user_protocol.dial(extension)
-    logging.debug('%s rings %s: sleep', caller, receiver)
+    context.logger.debug('%s rings %s: sleep', caller, receiver)
     await sleep(int(call_timeout))
 
 @then('{name} cancels the call')
@@ -175,10 +173,10 @@ async def step_impl(context, name):
     if user_protocol.wait is not None:
         user_protocol.wait.cancel()
     user_protocol.wait = context.net_transport.loop.create_future()
-    logging.debug('%s cancels the call: wait=loop.create_future()', name)
+    context.logger.debug('%s cancels the call: wait=loop.create_future()', name)
     user_protocol.cancel()
     if not user_protocol.wait.done():
-        logging.debug('%s cancels the call: waiting', name)
+        context.logger.debug('%s cancels the call: waiting', name)
         await user_protocol.wait
 
 @then('{name} lets phone ring {num_rings} times before answering')
@@ -200,7 +198,7 @@ async def step_impl(context, from_name, to_name_uri):
     refer_msg = refer_from_ack(refer_to,
             user_protocol.get_prev_rcvd('ACK'),
             user_protocol)
-    logging.debug('%s transfers to %s: wait=loop.create_future()', from_name, to_name_uri)
+    context.logger.debug('%s transfers to %s: wait=loop.create_future()', from_name, to_name_uri)
     user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.sendto(refer_msg)
     if not user_protocol.wait.done():
@@ -234,7 +232,7 @@ def refer_from_ack(refer_to:str, ack_msg:str, user_protocol):
 @async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
-    logging.debug('expects a call %s: wait=loop.create_future', name)
+    context.logger.debug('expects a call %s: wait=loop.create_future', name)
     user_protocol.wait = context.net_transport.loop.create_future()
     async_context = use_or_create_async_context(context, 'net_transport')
     extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
@@ -258,26 +256,26 @@ async def step_impl(context, name):
     caller_protocol = None if not 'pending_caller' in context else \
         context.sip_xport[context.pending_caller][1]
 
-    logging.debug('answers the call %s:wait= %s', name,
+    context.logger.debug('answers the call %s:wait= %s', name,
         'None' if user_protocol.wait is None else 'not None')
     if not user_protocol.wait.done():
         if caller_protocol and caller_protocol.in_a_call:
-            logging.debug('answers the call %s:looping sleep', name)
+            context.logger.debug('answers the call %s:looping sleep', name)
             while caller_protocol.in_a_call and not user_protocol.wait.done():
                 await sleep(0.5)
         else:
-            logging.debug('answers the call %s:waiting', name)
+            context.logger.debug('answers the call %s:waiting', name)
             await user_protocol.wait
     assert_that(user_protocol.wait.result())\
         .described_as('__ answers the call').is_true()
     user_protocol.wait = None
-    logging.debug('answers the call %s:RTP', name)
+    context.logger.debug('answers the call %s:RTP', name)
     user_protocol.rtp_endpoint.begin()
 
 @then('pause for {time} seconds between {caller} and {receiver}')
 @async_run_until_complete(async_context='net_transport')
 async def step_impl(context, time, caller, receiver):
-    logging.debug('pause for call between %s and %s', caller, receiver)
+    context.logger.debug('pause for call between %s and %s', caller, receiver)
     time = int(time)
     caller_protocol = context.sip_xport[caller][1]
     receiver_protocol = context.sip_xport[receiver][1]
@@ -299,25 +297,25 @@ async def step_impl(context, time, caller, receiver):
 
     caller_protocol.wait = None
     receiver_protocol.wait = None
-    logging.debug('pause for call between: done')
+    context.logger.debug('pause for call between: done')
     assert time == 0
 
 @then('pause for {time} seconds')
 @async_run_until_complete(async_context='net_transport')
 async def step_impl(context, time):
-    logging.debug('pause for: %s seconds', time)
+    context.logger.debug('pause for: %s seconds', time)
     await sleep(int(time))
-    logging.debug('pause for: done')
+    context.logger.debug('pause for: done')
 
 @then('{name} hangs up')
 @async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     user_protocol.rtp_endpoint.end()
-    logging.debug('hangs up %s: wait=loop.create_future()', name)
+    context.logger.debug('hangs up %s: wait=loop.create_future()', name)
     user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.hangup()
-    logging.debug('hangs up %s: wait=%s', name, user_protocol.wait.done())
+    context.logger.debug('hangs up %s: wait=%s', name, user_protocol.wait.done())
     if not user_protocol.wait.done():
         await user_protocol.wait
     assert_that(user_protocol.wait.result())\
@@ -328,7 +326,7 @@ async def step_impl(context, name):
 @async_run_until_complete(async_context='net_transport')
 async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
-    logging.debug('starts waiting %s: wait=loop.create_future()', name)
+    context.logger.debug('starts waiting %s: wait=loop.create_future()', name)
     user_protocol.wait = context.net_transport.loop.create_future()
 
 @then('{name} waits for hangup')
@@ -337,7 +335,7 @@ async def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     assert_that(user_protocol.wait)\
         .described_as('__ waits for hangup:future').is_not_none()
-    logging.debug('waits for hangup')
+    context.logger.debug('waits for hangup')
     if not user_protocol.wait.done():
         await user_protocol.wait
     assert_that(user_protocol.wait.result())\
@@ -350,7 +348,7 @@ async def step_impl(context, name):
     assert 'net_transport' in context
     user_protocol = context.sip_xport[name][1]
 
-    logging.debug('unregisters %s: wait=loop.create_future()', name)
+    context.logger.debug('unregisters %s: wait=loop.create_future()', name)
     user_protocol.wait = context.net_transport.loop.create_future()
     user_protocol.start_unregistration()
     if not user_protocol.wait.done():
@@ -358,3 +356,7 @@ async def step_impl(context, name):
     assert_that(user_protocol.wait.result())\
         .described_as('__ unregisters').is_true()
     user_protocol.wait = None
+
+@then('fail')
+def step_impl(context):
+    assert False

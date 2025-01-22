@@ -18,15 +18,16 @@ EVENT_SOCKET = None
 LOOP_TIMER = 0
 LOOP_ITER = 0
 SIP_CALLID = None
+LOGGER = None
 def background_task():
     '''Background task example'''
     global LOOP_TIMER, LOOP_ITER
     EVENT_SOCKET.write(f'bgapi uuid_send_info {SIP_CALLID} {datetime.datetime.now().isoformat()}')
-    logging.debug('events:background_task, messages.empty=%s',
+    LOGGER.debug('events:background_task, messages.empty=%s',
         EVENT_SOCKET.messages.empty())
     while not EVENT_SOCKET.messages.empty():
         EVENT_SOCKET.messages.get_nowait()
-        #logging.debug('events:background_task, messages=%s',
+        #context.logger.debug('events:background_task, messages=%s',
         #    EVENT_SOCKET.messages.get_nowait())
     LOOP_ITER -= 1
     if LOOP_ITER > 0:
@@ -66,8 +67,10 @@ def parse_registrations(reg_raw):
 @async_run_until_complete(async_context='net_transport')
 async def step_impl(context, uas_name):
     global EVENT_SOCKET
+    global LOGGER
     assert uas_name in context.test_servers
-    logging.debug('events:connect event socket: server %s', uas_name)
+    LOGGER = context.logger
+    context.logger.debug('events:connect event socket: server %s', uas_name)
     _, context.event_socket = \
         await context.net_transport.loop.create_connection(
         lambda: EventSocket(),
@@ -120,7 +123,7 @@ async def step_impl(context):
     assert SIP_CALLID
 
     EVENT_SOCKET.write(f'api uuid_setvar {SIP_CALLID} fs_send_unsupported_info 1')
-    logging.debug(
+    context.logger.debug(
         'events:get channel info: api uuid_setvar %s fs_send_unsupported_info 1',
         SIP_CALLID)
     msg = await EVENT_SOCKET.messages.get()
@@ -139,7 +142,7 @@ async def step_impl(context, user_name):
         invite_call_id = invite.field('Call_ID')
     SIP_CALLID = invite_call_id
 
-    logging.debug('events:get call info for: SIP_CALLID=%s', SIP_CALLID)
+    context.logger.debug('events:get call info for: SIP_CALLID=%s', SIP_CALLID)
     assert SIP_CALLID is not None
     assert SIP_CALLID
     #EVENT_SOCKET.write('api sofia status profile internal reg')

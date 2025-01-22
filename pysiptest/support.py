@@ -4,7 +4,6 @@
 Functions to support steps Feature: Registration, RFC 3665, Section 2
 '''
 
-#import logging
 import fcntl
 import os
 import random
