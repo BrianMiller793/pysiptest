@@ -96,14 +96,17 @@ async def step_impl(context, caller, receiver):
     user_protocol = context.sip_xport[caller][1]
 
     # Create RTP playback endpoint
-    extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
+    if context.use_stun:
+        extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
+    else:
+        extern_ip = intern_ip = (context.test_localhostip, 0)
+
     _, protocol = await context.net_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
             file_name='sipp_call.pcap', stun_addr=extern_ip),
         reuse_port=True,
         family=socket.AF_INET,
-        local_addr=intern_ip) # server mode
-        #local_addr=(test_localhostip, 0)) # server mode
+        local_addr=intern_ip)
     assert protocol is not None
     user_protocol.rtp_endpoint = protocol
 
@@ -143,7 +146,11 @@ async def step_impl(context, caller, receiver, call_timeout):
     user_protocol = context.sip_xport[caller][1]
 
     # Create RTP playback endpoint
-    extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
+    if context.use_stun:
+        extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
+    else:
+        extern_ip = intern_ip = (context.test_localhostip, 0)
+
     _, protocol = await context.net_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
             file_name='sipp_call.pcap', stun_addr=extern_ip),
@@ -235,7 +242,12 @@ async def step_impl(context, name):
     context.logger.debug('expects a call %s: wait=loop.create_future', name)
     user_protocol.wait = context.net_transport.loop.create_future()
     async_context = use_or_create_async_context(context, 'net_transport')
-    extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
+
+    if context.use_stun:
+        extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
+    else:
+        extern_ip = intern_ip = (context.test_localhostip, 0)
+
     _, protocol = \
         await context.net_transport.loop.create_datagram_endpoint(
             # or RtpEcho

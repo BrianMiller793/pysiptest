@@ -189,10 +189,17 @@ def test_servers(context):
     context.test_servers = td.TEST_SERVERS
     yield context.test_servers
 
-@fixture(name=logger)
-def logger(context):
+@fixture(name='use_stun')
+def test_use_stun(context):
+    '''Indicate that STUN should be used for RTP'''
+    context.use_stun = False
+    return context.use_stun
+
+@fixture(name='logger')
+def test_logger(context):
+    '''Provide access to Behave logger'''
     context.logger = LOGGER
-    return context.logger
+    return LOGGER
 
 ###########################################
 def import_init_udp_transport(context, import_file_name):
@@ -233,6 +240,9 @@ def before_tag(context, tag):
         assert os.path.isfile(import_file_name)
         import_init_udp_transport(context, import_file_name)
 
+def before_feature(context, feature):
+    '''Set up environment prior to feature execution.'''
+
 def before_scenario(context, scenario):
     '''Set up test context and skip marked scenarios.'''
     # Skip all scenarios tagged with @skip
@@ -240,6 +250,8 @@ def before_scenario(context, scenario):
         scenario.skip('Marked with @skip')
         return
 
+    use_fixture(test_logger, context)
+    use_fixture(test_use_stun, context)
     use_fixture(test_localhostip, context)
     use_fixture(test_localhostname, context)
     use_fixture(test_hostname, context)
