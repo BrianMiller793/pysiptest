@@ -469,7 +469,7 @@ class AutoAnswer(AutoReply):
         logger.debug('')
         self.rtp_endpoint = kwargs['rtp_endpoint'] \
             if 'rtp_endpoint' in kwargs else None
-        self.num_rings = kwargs['rings'] if 'rings' in kwargs else 1
+        self.is_available = kwargs['is_available'] if 'is_available' in kwargs else True
         self.in_a_call = False
         self.dialog = {}
         self.answer_queue = asyncio.Queue() # Packets to be sent for answer
@@ -493,7 +493,7 @@ class AutoAnswer(AutoReply):
         logger.debug('method=%s', method)
 
         fields = hf.HeaderFieldValues(sip_msg)
-        # Content-Length is optional in UDP, mandatory for TCP
+        # Content-Length is optional for UDP, mandatory for TCP
         # Fragment tests
         if 'Content-Length' in fields.field_names and \
             'Body' in fields.field_names:
@@ -540,12 +540,11 @@ class AutoAnswer(AutoReply):
         The RTP client must already be started.'''
         logger.debug('Call-ID=%s', self.dialog['call_id'])
         assert self.rtp_endpoint is not None
-        # State:
+        # Request Message State:
         #  From: UAS user <sip:ext@dom>;tag=jfjfjfjf
         #  To: UAC user <sip:ext@dom>
         self.dialog['req_uri'] = sip_msg.split(maxsplit=2)[1]
-        logger.debug('INVITE, req_uri=%s',
-            self.dialog['req_uri'])
+        logger.debug('INVITE, req_uri=%s', self.dialog['req_uri'])
         self.rtp_endpoint.dest_addr = rtp_sockname_from_sdp(sip_msg)
 
         logger.debug('sending:Trying')
@@ -568,21 +567,24 @@ class AutoAnswer(AutoReply):
         self.dialog['uac_user'] = response.field('To').value
 
         logger.debug('sending:Ringing')
-        for _ in range(self.num_rings):
-            response = sipmsg.Response(
-                prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
-            self.add_route_addr(response)
-            response.field('Via').value = None
-            response.field('Via').via_params['address'] = \
-                f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]}'
-            response.field('To').tag = self.dialog['uac_tag']
-            response.add_set_valid_field('Contact',
-                f'<sip:{self.user_info["extension"]}@'\
-                f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};'\
-                f'transport={self.socket_typename}>')
-            support.insert_behave_fields(self.header_fields, response)
-            response.sort()
-            self.answer_queue.put_nowait(response)
+        response = sipmsg.Response(
+            prev_msg=sip_msg, status_code='180', reason_phrase='Ringing')
+        self.add_route_addr(response)
+        response.field('Via').value = None
+        response.field('Via').via_params['address'] = \
+            f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]}'
+        response.field('To').tag = self.dialog['uac_tag']
+        response.add_set_valid_field('Contact',
+            f'<sip:{self.user_info["extension"]}@'\
+            f'{self.sip_local_addr[0]}:{self.sip_local_addr[1]};'\
+            f'transport={self.socket_typename}>')
+        support.insert_behave_fields(self.header_fields, response)
+        response.sort()
+        self.answer_queue.put_nowait(response)
+        if not self.is_available:
+            # Expect to receive CANCEL
+            self.is_available = True
+            return
 
         # pylint: disable=C0301
         logger.debug('sending:Ringing:rtp_endpoint.begin, local_addr=%s, dest_addr=%s',
@@ -959,6 +961,10 @@ class AutoAnswer(AutoReply):
 
     def cancel_dialog(self, sip_msg:str):
         '''Received request from UAS to cancel INVITE. Send OK, then 487'''
+        # Recv CANCEL sip:2001@192.168.2.53:5060 SIP/2.0
+        # Send SIP/2.0 200 OK
+        # Send SIP/2.0 487 Request Terminated
+        # Recv ACK sip:2001@192.168.2.53:5060 SIP/2.0
         logger.debug('')
         self.answer_queue = asyncio.Queue() # Dump queued answering packets
 

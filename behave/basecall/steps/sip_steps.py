@@ -186,11 +186,11 @@ async def step_impl(context, name):
         context.logger.debug('%s cancels the call: waiting', name)
         await user_protocol.wait
 
-@then('{name} lets phone ring {num_rings} times before answering')
-def step_impl(context, name, num_rings):
+@then('{name} doesn\'t answer')
+def step_impl(context, name, ring_wait):
     user_protocol = context.sip_xport[name][1]
-    assert hasattr(user_protocol, 'num_rings')
-    user_protocol.num_rings = int(num_rings)
+    assert hasattr(user_protocol, 'is_available')
+    user_protocol.is_available = False
 
 @then('{from_name} transfers to {to_name_uri}')
 @async_run_until_complete(async_context='net_transport')

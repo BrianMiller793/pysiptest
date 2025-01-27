@@ -25,66 +25,53 @@ if not TEST_LOCALHOSTIP:
 if '0.0.0.0' in TEST_LOCALHOSTIP:
     TEST_LOCALHOSTIP = get_stun_address()
 
-#TEST_HOSTNAME = 'nuc2.localdomain'
-TEST_HOSTNAME = 'raymes.duckdns.org'
+TEST_HOSTNAME = 'nuc2.localdomain'
+#TEST_HOSTNAME = 'raymes.duckdns.org'
 TEST_HOSTIP = socket.gethostbyname(TEST_HOSTNAME)
 TEST_SERVERS = {
     'UC': ('192.168.3.70', 5060),
     'Vanilla': ('50.106.21.108', 5080),
     'Docker': (TEST_HOSTIP, 5080)} # Docker running with --network=host
 PASSWORD_DEFAULT = 'hownowbrowncow123'
-server = TEST_SERVERS['Docker']
+server = TEST_SERVERS['Vanilla']
 TEST_USERS = {
     'Alice': {
-        'domain': server[0],
+        'domain': 'teo',
         'name': 'Alice',
-        'extension': '1000',
-        'sipuri': f'sip:1000@{server[0]}',
+        'extension': '2006',
+        'sipuri': 'sip:2006@teo',
         'password': PASSWORD_DEFAULT,
-        'server': 'Vanilla',
+        'server': 'Docker',
         'transport': AutoAnswer,
         'header_fields': {
-            'Session-Expires': '1800',
-            'Min-SE': '1800',
             'User-Agent': 'pysip/123456_DEADBEEFCAFE'}},
     'Bob': {
-        'domain': server[0],
+        'domain': 'teo',
         'name': 'Bob',
-        'extension': '1001',
-        'sipuri': f'sip:1001@{server[0]}',
+        'extension': '2007',
+        'sipuri': 'sip:2007@teo',
         'password': PASSWORD_DEFAULT,
-        'server': 'Vanilla',
+        'server': 'Docker',
         'transport': AutoAnswer,
         'header_fields': {
-            'Session-Expires': '1800',
-            'Min-SE': '1800',
-            'Supported': '199,timer',
-            'User-Agent': 'Teo Teo Fir V2 2.12.16.17.1 123abc456def'}},
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}},
     'Charlie': {
-        'domain': server[0],
+        'domain': 'teo',
         'name': 'Charlie',
-        'extension': '1002',
-        'sipuri': f'sip:1002@{server[0]}',
+        'extension': '2008',
+        'sipuri': 'sip:2008@teo',
         'password': PASSWORD_DEFAULT,
-        'server': 'Vanilla',
+        'server': 'Docker',
         'transport': AutoAnswer,
         'header_fields': {
-            'User-Agent': 'Teo Teo Fir V2 2.12.16.17.1 123abc456def'}},
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}},
     'Dave': {
-        'domain': server[0],
+        'domain': 'teo',
         'name': 'Dave',
-        'extension': '1003',
-        'sipuri': f'sip:1003@{server[0]}',
+        'extension': '2009',
+        'sipuri': 'sip:2009@teo',
         'password': PASSWORD_DEFAULT,
-        'server': 'Vanilla',
+        'server': 'Docker',
         'transport': AutoAnswer,
         'header_fields': {
-            'User-Agent': 'Aastra 400',
-            #'User-Agent': 'Teo Teo Fir V2 2.12.16.17.1 123abc456def',
-            'Allow': 'ACK,BYE,CANCEL,INVITE,NOTIFY,OPTIONS,PUBLISH,UPDATE,REFER',
-            'Supported': '199,timer',
-            'P-Preferred-Identity': f'"Dave" <sip:1003@{server[0]}>',
-            'P-Early-Media': 'supported',
-            'Privacy': 'none',
-            'Min-SE': '1800',
-            'Session-Expires': '1800'}}}
+            'User-Agent': 'pysip/123456_DEADBEEFCAFE'}}}

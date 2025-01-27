@@ -1,12 +1,13 @@
 Feature: Calls are routed according to presence information
-# Auto Attendant members: Dave
+# set environment FS_CONTAINER to Docker container name
 # Hunt Group members: Dave
+# Auto Attendant members: Dave
 # ACD Queue members: Dave
 
   Scenario: Ring to Dialed Extension
     Given Bob rings to Bob
     Given Bob is registered and waiting
-    Then Bob lets phone ring 30 times before answering
+    Then Bob doesn't answer
     Then Alice rings Bob for 5 seconds
     Then Alice cancels the call
     Then Bob has missed a call
