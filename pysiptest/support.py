@@ -23,11 +23,12 @@ def sip_sdp(username, sockname=None) -> str:
 
     assert sockname is not None
     assert isinstance(sockname, tuple)
+    assert sockname[1] > 0
     ipaddr = sockname[0]
     audio_port = sockname[1]
     random.seed()
     # <username> is the user's login on the originating host, or it is "-"
-    session_id = random.randint(32768, 65535) # Unique
+    session_id = random.randint(65536, 131071) # Unique
     version = 0 # "This memo defines version 0."
     # <nettype> : network
     # <addrtype> : network

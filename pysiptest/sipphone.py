@@ -717,10 +717,9 @@ class AutoAnswer(AutoReply):
     def dial(self, recipient, route_addr=None):
         '''Initiate call to recipient (dialog). RTP must be ready.'''
         logger.debug('')
-        invite = support.sip_invite(self.sip_local_addr,
-            self.user_info, recipient,
-            self.rtp_endpoint.sdp_sockname, header_fields=self.header_fields, \
-            transport=self.socket_typename)
+        invite = support.sip_invite(self.sip_local_addr, self.user_info,
+            recipient, self.rtp_endpoint.sdp_sockname,
+            header_fields=self.header_fields, transport=self.socket_typename)
         # lr parameter: RFC 3261, 19.1.1, p.151
         # According to Aastra trace, use address for receiver
         self.route_addr = route_addr if route_addr else self.route_addr

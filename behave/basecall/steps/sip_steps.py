@@ -99,7 +99,8 @@ async def step_impl(context, caller, receiver):
     if context.use_stun:
         extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
     else:
-        extern_ip = intern_ip = (context.test_localhostip, 0)
+        extern_ip = None
+        intern_ip = (context.test_localhostip, 0)
 
     _, protocol = await context.net_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
@@ -149,7 +150,8 @@ async def step_impl(context, caller, receiver, call_timeout):
     if context.use_stun:
         extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
     else:
-        extern_ip = intern_ip = (context.test_localhostip, 0)
+        extern_ip = None
+        intern_ip = (context.test_localhostip, 0)
 
     _, protocol = await context.net_transport.loop.create_datagram_endpoint(
         lambda: RtpPlay(context.net_transport.loop, on_con_lost=None,
@@ -187,7 +189,7 @@ async def step_impl(context, name):
         await user_protocol.wait
 
 @then('{name} doesn\'t answer')
-def step_impl(context, name, ring_wait):
+def step_impl(context, name):
     user_protocol = context.sip_xport[name][1]
     assert hasattr(user_protocol, 'is_available')
     user_protocol.is_available = False
@@ -246,7 +248,8 @@ async def step_impl(context, name):
     if context.use_stun:
         extern_ip, intern_ip = await sc.get_stun_addr(loop=context.net_transport.loop)
     else:
-        extern_ip = intern_ip = (context.test_localhostip, 0)
+        extern_ip = None
+        intern_ip = (context.test_localhostip, 0)
 
     _, protocol = \
         await context.net_transport.loop.create_datagram_endpoint(
